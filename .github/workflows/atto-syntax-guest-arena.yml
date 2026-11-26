@@ -1,0 +1,145 @@
+name: Atto syntax guest and native arena parity
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/atto-syntax-guest-arena.yml']
+permissions:
+  contents: read
+jobs:
+  js-mtd:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Verify exact public source
+        shell: bash
+        run: |
+          git init -q source
+          git -C source remote add origin https://github.com/atto-lang/atto-source.js.git
+          git -C source fetch --no-tags --depth=1 origin 24743681cbf0873a5c2d3078de1878b2335f4a27
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = "24743681cbf0873a5c2d3078de1878b2335f4a27"
+          git -C source rev-parse 'HEAD^{tree}'
+          test "$(git -C source hash-object src/program-v2.mjs)" = "6a452a6217f2a7b9532f06ce65efdd447d66cc0c"
+          test "$(git -C source hash-object tests/program-classes-v2.test.mjs)" = "8d13652f5f4df4b5db0e4ec1b76ef15776f45bce"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Focused actual compiler regression
+        working-directory: source
+        run: node --test tests/program-classes-v2.test.mjs
+      - name: Full Node regression
+        if: always()
+        working-directory: source
+        run: npm test
+  js-exports:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Verify exact public source
+        shell: bash
+        run: |
+          git init -q source
+          git -C source remote add origin https://github.com/atto-lang/atto-source.js.git
+          git -C source fetch --no-tags --depth=1 origin 701b9ec741ec186bb0a525b380ff33e0d0464d60
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = "701b9ec741ec186bb0a525b380ff33e0d0464d60"
+          git -C source rev-parse 'HEAD^{tree}'
+          test "$(git -C source hash-object src/compiler.mjs)" = "aeda7494be592f8a27282b068a29175514d68100"
+          test "$(git -C source hash-object src/program-v2.mjs)" = "e72ff05fca7390d512da47f7b8b38af88f8159e9"
+          test "$(git -C source hash-object tests/declarative-exports.test.mjs)" = "d24f4c4c7a8de137e291562de2948e560fa7b33e"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Focused actual compiler regression
+        working-directory: source
+        run: node --test tests/declarative-exports.test.mjs
+      - name: Full Node regression
+        if: always()
+        working-directory: source
+        run: npm test
+  java-rendezvous:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Verify exact public source
+        shell: bash
+        run: |
+          git init -q source
+          git -C source remote add origin https://github.com/atto-lang/atto-source.java.git
+          git -C source fetch --no-tags --depth=1 origin 11c4bffc2aeb6bb59fac6906b868a4a2ed3810fa
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = "11c4bffc2aeb6bb59fac6906b868a4a2ed3810fa"
+          git -C source rev-parse 'HEAD^{tree}'
+          test "$(git -C source hash-object src/test/java/dev/oreslang/SuspensionAliasRendezvousGuestTest.java)" = "ad3b1c58fc699a26d9636efb9137d6cea8fbe94b"
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: Actual JVM guest rendezvous
+        working-directory: source
+        run: mvn -B -ntp -Dtest=SuspensionAliasRendezvousGuestTest,DeclarativeExportsParserTest,CheckedUnwrapPipelineExecutionTest -DfailIfNoTests=true -Dsurefire.failIfNoSpecifiedTests=true test
+  atto-bootstrap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Verify exact public compiler and seed
+        shell: bash
+        run: |
+          git init -q stage0
+          git -C stage0 remote add origin https://github.com/atto-lang/atto-source.rs.git
+          git -C stage0 fetch --no-tags --depth=1 origin ed00c62aa577bea01c61d65e9a9e226ab793c3ea
+          git -C stage0 checkout --detach FETCH_HEAD
+          test "$(git -C stage0 rev-parse HEAD)" = "ed00c62aa577bea01c61d65e9a9e226ab793c3ea"
+          git -C stage0 rev-parse 'HEAD^{tree}'
+          test "$(git -C stage0 hash-object src/wasm.rs)" = "8415f8752a09230fb483ce4e7abb8007c8011259"
+          test "$(git -C stage0 hash-object src/check.rs)" = "4ae1f2e42ad604bd411859cc8a7ff56f1ab8a542"
+          git init -q seed
+          git -C seed remote add origin https://github.com/atto-lang/atto-source.atto.git
+          git -C seed fetch --no-tags --depth=1 origin aad0b0eae5b0d5090d007fbcb0db482f8dba580f
+          git -C seed checkout --detach FETCH_HEAD
+          test "$(git -C seed rev-parse HEAD)" = "aad0b0eae5b0d5090d007fbcb0db482f8dba580f"
+          git -C seed rev-parse 'HEAD^{tree}'
+          test "$(git -C seed hash-object src/ownership_transfer_token.atto)" = "baa29e6d3871e44c14a9ea0a9ed25e73173c30b3"
+          test "$(git -C seed hash-object tests/ownership-transfer-bootstrap-guest.mjs)" = "f0c793a527703f2a4d7c4f36880521b05bd576a8"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Build real Stage-0 native compiler
+        working-directory: stage0
+        run: cargo build --locked --bin attoc
+      - name: Execute ownership classifier and suspension regression
+        run: |
+          node seed/tests/ownership-transfer-bootstrap-guest.mjs "$PWD/stage0/target/debug/attoc"
+          node seed/tests/suspension-effect-bootstrap-guest.mjs "$PWD/stage0/target/debug/attoc"
+  net-native-arena:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Verify exact public source
+        shell: bash
+        run: |
+          git init -q source
+          git -C source remote add origin https://github.com/atto-lang/atto-source.net.git
+          git -C source fetch --no-tags --depth=1 origin fe3a9a5f13c6fd70b11fb2c43a8818ceb35635d2
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = "fe3a9a5f13c6fd70b11fb2c43a8818ceb35635d2"
+          git -C source rev-parse 'HEAD^{tree}'
+          test "$(git -C source hash-object runtime/Ores.Net.Runtime/ActorArena.cs)" = "bf6e05c797c1599ff9ad5b5ab85dc37f0312f9bd"
+          test "$(git -C source hash-object verification/Ores.Net.Tests/ActorArenaTests.cs)" = "d4cdb82253ae9eebe4460deefd14597b06debc9a"
+      - name: Publish the original arena test suite alone as NativeAOT
+        shell: bash
+        working-directory: source
+        run: |
+          mkdir -p .carrier-arena
+          cat > .carrier-arena/ArenaProbe.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup><OutputType>Exe</OutputType><PublishAot>true</PublishAot></PropertyGroup>
+            <ItemGroup>
+              <ProjectReference Include="../runtime/Ores.Net.Runtime/Ores.Net.Runtime.csproj" />
+              <Compile Include="../verification/Ores.Net.Tests/ActorArenaTests.cs" Link="ActorArenaTests.cs" />
+            </ItemGroup>
+          </Project>
+          EOF
+          printf '%s\n' 'ActorArenaTests.Run(); Console.WriteLine("ATTO_NATIVE_ARENA_ORIGINAL_TESTS_PASS");' > .carrier-arena/Program.cs
+          dotnet publish .carrier-arena/ArenaProbe.csproj -c Release -r linux-x64 -o "$RUNNER_TEMP/arena"
+          "$RUNNER_TEMP/arena/ArenaProbe"
