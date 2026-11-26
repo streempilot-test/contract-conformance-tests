@@ -1,0 +1,38 @@
+name: Exact JS counted-ready physical guest retirement
+on:
+  pull_request:
+    branches: ['main']
+    paths: ['.github/workflows/atto-js-counted-lease-guest.yml']
+permissions: {}
+jobs:
+  guest:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Verify exact public compiler tree
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          git init source
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.js.git 3ea99c0151c7b72c96cc646e394aa144bc84f019
+          git -C source -c core.hooksPath=/dev/null checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = 3ea99c0151c7b72c96cc646e394aa144bc84f019
+          test "$(git -C source rev-parse HEAD^{tree})" = 560cac6e8dae7e5d0c69162c227e911721c147fb
+          test "$(git -C source write-tree)" = 560cac6e8dae7e5d0c69162c227e911721c147fb
+          test "$(git -C source hash-object src/counted-select-ready-compiler.mjs)" = 9317dc660f5f854e9b24dd78511f740cf8e76a3e
+          test "$(git -C source hash-object tests/counted-select-execution-lease-guest.test.mjs)" = 26112cd17a3e86fdd9cb16e1373efef87879a352
+          git -C source diff --exit-code HEAD
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Execute actual compiler guest and fence stress
+        working-directory: source
+        run: |
+          set -euo pipefail
+          node --test tests/counted-select-execution-lease-guest.test.mjs tests/counted-select-ready-guest.test.mjs tests/select-continuation-execution-lease.test.mjs tests/select-continuation-lifecycle-stress.test.mjs
+      - name: Full compiler regression
+        working-directory: source
+        run: |
+          set -euo pipefail
+          npm test
+          npm run check
