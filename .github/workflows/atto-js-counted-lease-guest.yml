@@ -1,73 +1,76 @@
-name: Exact suspension alias parity across native and static frontends
+name: Exact Stage-0 proof and browser suspension qualification
 on:
   pull_request:
     branches: ['main']
     paths: ['.github/workflows/atto-js-counted-lease-guest.yml']
 permissions: {}
 jobs:
-  verify:
+  stage0:
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - repo: atto-source.hdl
-            sha: c19fed113545782f85d8774add3cfdabe53ac632
-            tree: be77838ddf0c204f0724e1247e7ddac9b2afcc3c
-          - repo: atto-source.realtime
-            sha: 65984b8fb1214e46c8dbac8023bc82301e9792c2
-            tree: e78f0327cc6264a8e2fc1c291e1471f65c50f6e0
-          - repo: atto-source.forge
-            sha: 1239afb1c4bf58fa0ef7691c151a826bce40f8a4
-            tree: d3435cb1b53166ac3945dfd62bfab6342a9e1de7
-          - repo: atto-source.llvm
-            sha: 5882e3893e585e7b7ff837aa6a831b07944061b5
-            tree: 324e6f4bc434ce0ac0f4eabb214735c80e689827
-    env:
-      SOURCE_REPO: ${{ matrix.repo }}
-      SOURCE_SHA: ${{ matrix.sha }}
-      SOURCE_TREE: ${{ matrix.tree }}
-      GIT_TERMINAL_PROMPT: '0'
-      GIT_CONFIG_NOSYSTEM: '1'
-      GIT_CONFIG_GLOBAL: /dev/null
+    timeout-minutes: 30
     steps:
-      - name: Verify exact public source
+      - name: Verify exact public compiler and Atto source
         run: |
           set -euo pipefail
-          git init source
-          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 "https://github.com/atto-lang/$SOURCE_REPO.git" "$SOURCE_SHA"
-          git -C source -c core.hooksPath=/dev/null checkout --detach FETCH_HEAD
-          test "$(git -C source rev-parse HEAD)" = "$SOURCE_SHA"
-          test "$(git -C source rev-parse HEAD^{tree})" = "$SOURCE_TREE"
-          test "$(git -C source write-tree)" = "$SOURCE_TREE"
-          git -C source diff --exit-code HEAD
-          printf 'EXACT_PUBLIC_SOURCE|%s|%s|%s\n' "$SOURCE_REPO" "$SOURCE_SHA" "$SOURCE_TREE"
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          fetch() {
+            git init "$1"
+            git -C "$1" -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 "https://github.com/atto-lang/$2.git" "$3"
+            git -C "$1" -c core.hooksPath=/dev/null checkout --detach FETCH_HEAD
+            test "$(git -C "$1" rev-parse HEAD)" = "$3"
+            test "$(git -C "$1" rev-parse HEAD^{tree})" = "$4"
+            test "$(git -C "$1" write-tree)" = "$4"
+            git -C "$1" diff --exit-code HEAD
+          }
+          fetch compiler atto-source.llvm 19a3adb40e3b8a5578f9fa378bcc7e40ec005137 6a342f49dba8b98cf866d5f1ac44e99bf39c1abb
+          fetch seed atto-source.atto ad47df21e4b2d1eb1a1b75194364abb607e86536 912f0ccd5e95269a37e53fec304b49bb014b5299
+          test "$(git -C seed hash-object src/strict_i64_interval.atto)" = 72f469d37da8a521f062e8869e9fb0910497a59b
+          test "$(git -C seed hash-object scripts/verify-strict-i64-interval-native.mjs)" = 3509ef9f4f103783984fc0f9291a06b3019b9942
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
-        if: matrix.repo == 'atto-source.hdl' || matrix.repo == 'atto-source.realtime'
         with:
           node-version: '22'
-      - name: Static counted compiler alias tests
-        if: matrix.repo == 'atto-source.hdl' || matrix.repo == 'atto-source.realtime'
-        working-directory: source
+      - name: Build actual LLVM compiler and execute all native proof kernels
         run: |
           set -euo pipefail
-          node --test tests/suspension-alias-counted-profile.test.mjs
-          node --test tests/*counted*.test.mjs
-      - name: Forge scalar compiler strict parser tests
-        if: matrix.repo == 'atto-source.forge'
-        working-directory: source
+          cmake -S compiler -B "$RUNNER_TEMP/build" -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
+          cmake --build "$RUNNER_TEMP/build" --target oreslang-llvmc -j2
+          compiler="$RUNNER_TEMP/build/oreslang-llvmc"
+          test -x "$compiler"
+          digest="$(sha256sum "$compiler" | cut -d' ' -f1)"
+          node seed/scripts/verify-strict-i64-interval-native.mjs "$compiler" "$digest" seed/src/strict_i64_interval.atto 72f469d37da8a521f062e8869e9fb0910497a59b | tee "$RUNNER_TEMP/proof.log"
+          grep -F '"passed":1867,"total":1867,"stage":0,"selfHosted":false' "$RUNNER_TEMP/proof.log"
+  wasm:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Verify exact public Rust and Wasm qualification trees
         run: |
           set -euo pipefail
-          for target in scalar_lexer scalar_parser; do
-            g++ -std=c++20 -O2 -Wall -Wextra -Wpedantic -Werror -Iinclude "tests/$target.cpp" -o "$RUNNER_TEMP/$target"
-            "$RUNNER_TEMP/$target"
-          done
-      - name: LLVM native parser and actual IR rejection
-        if: matrix.repo == 'atto-source.llvm'
-        working-directory: source
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          fetch() {
+            git init "$1"
+            git -C "$1" -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 "https://github.com/atto-lang/$2.git" "$3"
+            git -C "$1" -c core.hooksPath=/dev/null checkout --detach FETCH_HEAD
+            test "$(git -C "$1" rev-parse HEAD)" = "$3"
+            test "$(git -C "$1" rev-parse HEAD^{tree})" = "$4"
+            test "$(git -C "$1" write-tree)" = "$4"
+            git -C "$1" diff --exit-code HEAD
+          }
+          fetch compiler atto-source.rs 530bd6c27b6dcd36362035e996ab021186d2aaf6 c053493a272dc614c62ee6df9527d1b1f1b2dc21
+          fetch verifier atto-source.wasm e34e2f70d50345cc26c21b2748a5539f53eecf81 571a8a35971e14ca9d598f405b32448938557ec1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Build two independent compiler artifacts and execute guest controls
         run: |
           set -euo pipefail
-          cmake -S . -B "$RUNNER_TEMP/build" -DBUILD_TESTING=ON -DCMAKE_BUILD_TYPE=Debug
-          cmake --build "$RUNNER_TEMP/build" --target oreslang-native-suspension-effect-aliases-test -j2
-          ctest --test-dir "$RUNNER_TEMP/build" -R '^native_suspension_effect_aliases_parser$' --output-on-failure --no-tests=error
+          rustup toolchain install 1.85.1 --profile minimal --target wasm32-unknown-unknown
+          (cd compiler && CARGO_TARGET_DIR="$RUNNER_TEMP/target-a" cargo +1.85.1 build --locked --release --target wasm32-unknown-unknown)
+          (cd compiler && CARGO_TARGET_DIR="$RUNNER_TEMP/target-b" cargo +1.85.1 build --locked --release --target wasm32-unknown-unknown)
+          a="$RUNNER_TEMP/target-a/wasm32-unknown-unknown/release/atto_compiler.wasm"
+          b="$RUNNER_TEMP/target-b/wasm32-unknown-unknown/release/atto_compiler.wasm"
+          cmp "$a" "$b"
+          digest="$(sha256sum "$a" | cut -d' ' -f1)"
+          node verifier/tests/suspension-alias-browser-qualification.mjs "$a" "$digest" | tee "$RUNNER_TEMP/wasm.log"
+          grep -F SUSPENSION_ALIAS_WASM_CANDIDATE_PASS "$RUNNER_TEMP/wasm.log"
+          node --test verifier/tests/unicode-source-boundary-v1.test.mjs
