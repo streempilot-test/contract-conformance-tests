@@ -6,7 +6,7 @@ on:
 permissions:
   contents: read
 jobs:
-  java-rendezvous:
+  java-candidate:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -15,14 +15,14 @@ jobs:
         run: |
           git init -q source
           git -C source remote add origin https://github.com/atto-lang/atto-source.java.git
-          git -C source fetch --no-tags --depth=1 origin 03b0566fd2b1f45935e4cc78b2119ba8893be2b3
+          git -C source fetch --no-tags --depth=1 origin 08ad289d90f070bc3eb4563895d8f38b8977ed2d
           git -C source checkout --detach FETCH_HEAD
-          test "$(git -C source rev-parse HEAD)" = "03b0566fd2b1f45935e4cc78b2119ba8893be2b3"
+          test "$(git -C source rev-parse HEAD)" = "08ad289d90f070bc3eb4563895d8f38b8977ed2d"
           git -C source rev-parse 'HEAD^{tree}'
-          test "$(git -C source rev-parse 'HEAD^{tree}')" = "a991262537886a437168563f8a5622f9cceccd15"
+          test "$(git -C source rev-parse 'HEAD^{tree}')" = "a4e13761776f37239f7452a02c00115dc104197f"
           test "$(git -C source hash-object src/main/java/dev/oreslang/parser/Parser.java)" = "4a88aba4daba2627658dbea02f4cb9f6856280c9"
-          test "$(git -C source hash-object src/test/java/dev/oreslang/AttoDiamondDispatchParityTest.java)" = "e396a9011b2956e78a4879e00fd161f65feda4b0"
-          test "$(git -C source hash-object src/test/java/dev/oreslang/InterfaceFncKeywordTest.java)" = "0c08960fae1f26422276dcbe2c2e0f55c57d3bce"
+          test "$(git -C source hash-object src/test/java/dev/oreslang/AttoDiamondDispatchParityTest.java)" = "4255bc42124c79e96aac742dd4d65b457f658755"
+          test "$(git -C source hash-object src/test/java/dev/oreslang/InterfaceFncKeywordTest.java)" = "0251e51a63a8424931dfeb12c0aab4462296ad61"
       - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
         with:
           distribution: temurin
@@ -30,7 +30,30 @@ jobs:
       - name: Nominal method and parser regressions
         working-directory: source
         run: mvn -B -ntp -Dtest=InterfaceFncKeywordTest,AttoDiamondDispatchParityTest,SuspensionAliasRendezvousGuestTest,DeclarativeExportsParserTest -DfailIfNoTests=true -Dsurefire.failIfNoSpecifiedTests=true test
+      - name: Install solver for full JVM regression
+        if: always()
+        run: sudo apt-get update -qq && sudo apt-get install -y z3
       - name: Full JVM regression
         if: always()
+        working-directory: source
+        run: mvn -B -ntp test
+  java-main-baseline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Verify pinned comparison baseline
+        run: |
+          git init -q source
+          git -C source remote add origin https://github.com/atto-lang/atto-source.java.git
+          git -C source fetch --no-tags --depth=1 origin 457f7394e9b572362a773202b480e4107d7319df
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = 457f7394e9b572362a773202b480e4107d7319df
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: Install solver
+        run: sudo apt-get update -qq && sudo apt-get install -y z3
+      - name: Full baseline JVM regression
         working-directory: source
         run: mvn -B -ntp test
