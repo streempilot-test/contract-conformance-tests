@@ -1,38 +1,73 @@
-name: Exact JS counted-ready physical guest retirement
+name: Exact suspension alias parity across native and static frontends
 on:
   pull_request:
     branches: ['main']
     paths: ['.github/workflows/atto-js-counted-lease-guest.yml']
 permissions: {}
 jobs:
-  guest:
+  verify:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - repo: atto-source.hdl
+            sha: c19fed113545782f85d8774add3cfdabe53ac632
+            tree: be77838ddf0c204f0724e1247e7ddac9b2afcc3c
+          - repo: atto-source.realtime
+            sha: 65984b8fb1214e46c8dbac8023bc82301e9792c2
+            tree: e78f0327cc6264a8e2fc1c291e1471f65c50f6e0
+          - repo: atto-source.forge
+            sha: 1239afb1c4bf58fa0ef7691c151a826bce40f8a4
+            tree: d3435cb1b53166ac3945dfd62bfab6342a9e1de7
+          - repo: atto-source.llvm
+            sha: 5882e3893e585e7b7ff837aa6a831b07944061b5
+            tree: 324e6f4bc434ce0ac0f4eabb214735c80e689827
+    env:
+      SOURCE_REPO: ${{ matrix.repo }}
+      SOURCE_SHA: ${{ matrix.sha }}
+      SOURCE_TREE: ${{ matrix.tree }}
+      GIT_TERMINAL_PROMPT: '0'
+      GIT_CONFIG_NOSYSTEM: '1'
+      GIT_CONFIG_GLOBAL: /dev/null
     steps:
-      - name: Verify exact public compiler tree
+      - name: Verify exact public source
         run: |
           set -euo pipefail
-          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
           git init source
-          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.js.git 3ea99c0151c7b72c96cc646e394aa144bc84f019
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 "https://github.com/atto-lang/$SOURCE_REPO.git" "$SOURCE_SHA"
           git -C source -c core.hooksPath=/dev/null checkout --detach FETCH_HEAD
-          test "$(git -C source rev-parse HEAD)" = 3ea99c0151c7b72c96cc646e394aa144bc84f019
-          test "$(git -C source rev-parse HEAD^{tree})" = 560cac6e8dae7e5d0c69162c227e911721c147fb
-          test "$(git -C source write-tree)" = 560cac6e8dae7e5d0c69162c227e911721c147fb
-          test "$(git -C source hash-object src/counted-select-ready-compiler.mjs)" = 9317dc660f5f854e9b24dd78511f740cf8e76a3e
-          test "$(git -C source hash-object tests/counted-select-execution-lease-guest.test.mjs)" = 26112cd17a3e86fdd9cb16e1373efef87879a352
+          test "$(git -C source rev-parse HEAD)" = "$SOURCE_SHA"
+          test "$(git -C source rev-parse HEAD^{tree})" = "$SOURCE_TREE"
+          test "$(git -C source write-tree)" = "$SOURCE_TREE"
           git -C source diff --exit-code HEAD
+          printf 'EXACT_PUBLIC_SOURCE|%s|%s|%s\n' "$SOURCE_REPO" "$SOURCE_SHA" "$SOURCE_TREE"
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        if: matrix.repo == 'atto-source.hdl' || matrix.repo == 'atto-source.realtime'
         with:
           node-version: '22'
-      - name: Execute actual compiler guest and fence stress
+      - name: Static counted compiler alias tests
+        if: matrix.repo == 'atto-source.hdl' || matrix.repo == 'atto-source.realtime'
         working-directory: source
         run: |
           set -euo pipefail
-          node --test tests/counted-select-execution-lease-guest.test.mjs tests/counted-select-ready-guest.test.mjs tests/select-continuation-execution-lease.test.mjs tests/select-continuation-lifecycle-stress.test.mjs
-      - name: Full compiler regression
+          node --test tests/suspension-alias-counted-profile.test.mjs
+          node --test tests/*counted*.test.mjs
+      - name: Forge scalar compiler strict parser tests
+        if: matrix.repo == 'atto-source.forge'
         working-directory: source
         run: |
           set -euo pipefail
-          npm test
-          npm run check
+          for target in scalar_lexer scalar_parser; do
+            g++ -std=c++20 -O2 -Wall -Wextra -Wpedantic -Werror -Iinclude "tests/$target.cpp" -o "$RUNNER_TEMP/$target"
+            "$RUNNER_TEMP/$target"
+          done
+      - name: LLVM native parser and actual IR rejection
+        if: matrix.repo == 'atto-source.llvm'
+        working-directory: source
+        run: |
+          set -euo pipefail
+          cmake -S . -B "$RUNNER_TEMP/build" -DBUILD_TESTING=ON -DCMAKE_BUILD_TYPE=Debug
+          cmake --build "$RUNNER_TEMP/build" --target oreslang-native-suspension-effect-aliases-test -j2
+          ctest --test-dir "$RUNNER_TEMP/build" -R '^native_suspension_effect_aliases_parser$' --output-on-failure --no-tests=error
