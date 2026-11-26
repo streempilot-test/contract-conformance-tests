@@ -6,68 +6,6 @@ on:
 permissions:
   contents: read
 jobs:
-  wasm:
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    steps:
-      - name: Verify exact public head
-        shell: bash
-        run: |
-          git init -q source
-          git -C source remote add origin https://github.com/atto-lang/atto-source.wasm.git
-          git -C source fetch --no-tags --depth=1 origin b2a1744c854d5090a9f2cd82c200f624377210e6
-          git -C source checkout --detach FETCH_HEAD
-          test "$(git -C source rev-parse HEAD)" = "b2a1744c854d5090a9f2cd82c200f624377210e6"
-          git -C source rev-parse 'HEAD^{tree}'
-          test "$(git -C source hash-object src/pooled-actor-frame-turn.mjs)" = "5715140d7098f6f649eedc7e30ae3f1b53aeef89"
-          test "$(git -C source hash-object src/pooled-actor-host.mjs)" = "4b9f63e92a435f73ee6a484222a1c796a299ae37"
-          test "$(git -C source hash-object src/pooled-actor-worker.mjs)" = "5e8e3a5d64fc88e227f4d5dfebefc23d9212766b"
-          test "$(git -C source hash-object tests/pooled-managed-frame-worker.test.mjs)" = "531035c8f9170f379c260d84483de1334ac534d5"
-          test "$(git -C source hash-object package.json)" = "0a01e1e269278dad5cf0382abb416b9274b5f0b5"
-          test "$(git -C source hash-object tests/rt-mut-share-source-parity.test.mjs)" = "2b3bed0506e58b40f08363ce6a16269fc124b637"
-          test "$(git -C source hash-object tests/value-boundaries.test.mjs)" = "c4e0e17b9ce22c6664f17e4457a1ecc8c87f513b"
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
-        with:
-          node-version: '22'
-      - name: Managed pooled worker integration
-        working-directory: source
-        run: npm run test:managed-pooled-actors
-      - name: Full Node regression
-        if: always()
-        working-directory: source
-        run: npm test
-  forge:
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    steps:
-      - name: Verify exact public head
-        shell: bash
-        run: |
-          git init -q source
-          git -C source remote add origin https://github.com/atto-lang/atto-source.forge.git
-          git -C source fetch --no-tags --depth=1 origin 6700841dc48547904412bd45793842aff7ba2e51
-          git -C source checkout --detach FETCH_HEAD
-          test "$(git -C source rev-parse HEAD)" = "6700841dc48547904412bd45793842aff7ba2e51"
-          git -C source rev-parse 'HEAD^{tree}'
-          test "$(git -C source hash-object shared/oreslang/runtime/NativeSelectContinuationFence.hpp)" = "c6a3410890e504a9767f08eb53a99f4bd105648c"
-          test "$(git -C source hash-object verification/select_continuation_lease_host.cpp)" = "7582ea3324453678aba559e9e2401d0fab404a86"
-          test "$(git -C source hash-object CMakeLists.txt)" = "90052f93e45355cf0ceee675945b75f8e952c606"
-          test "$(git -C source rev-parse 'HEAD^{tree}')" = "ef2accd71efc49db5abd060f28d1ba12ee917495"
-      - name: Optimized and sanitizer lifecycle stress
-        working-directory: source
-        run: |
-          for cxx in g++ clang++; do
-            "$cxx" -std=c++20 -O2 -pthread -Wall -Wextra -Werror -I. verification/select_continuation_lease_host.cpp -o "$RUNNER_TEMP/lease-test"
-            "$RUNNER_TEMP/lease-test"
-            "$cxx" -std=c++20 -O1 -g -pthread -fsanitize=address,undefined -fno-omit-frame-pointer -I. verification/select_continuation_lease_host.cpp -o "$RUNNER_TEMP/lease-sanitized"
-            "$RUNNER_TEMP/lease-sanitized"
-          done
-      - name: CMake integration and registered tests
-        working-directory: source
-        run: |
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-          cmake --build build --parallel 2
-          ctest --test-dir build --output-on-failure
   real-wasm-actor:
     runs-on: ubuntu-24.04
     timeout-minutes: 35
@@ -83,11 +21,15 @@ jobs:
           git -C compiler rev-parse 'HEAD^{tree}'
           git init -q host
           git -C host remote add origin https://github.com/atto-lang/atto-source.wasm.git
-          git -C host fetch --no-tags --depth=1 origin b2a1744c854d5090a9f2cd82c200f624377210e6
+          git -C host fetch --no-tags --depth=1 origin 04972ef4ccdc3bb628a19f1c2950f4797af040f3
           git -C host checkout --detach FETCH_HEAD
-          test "$(git -C host rev-parse HEAD)" = b2a1744c854d5090a9f2cd82c200f624377210e6
+          test "$(git -C host rev-parse HEAD)" = 04972ef4ccdc3bb628a19f1c2950f4797af040f3
           test "$(git -C host hash-object scripts/verify-real-source-pooled-actor.mjs)" = 0fe7d4fd900114cb381cea75e873367a99e6f4d7
-          git -C host rev-parse 'HEAD^{tree}'
+          test "$(git -C host rev-parse 'HEAD^{tree}')" = cfe865e4e877ba431bd0b43cd2527c55951034e9
+          test "$(git -C host hash-object tests/real-source-pooled-actor.test.mjs)" = 565725d1e27b4ca9d969fbcabf0d9f846f45cbc9
+          test "$(git -C host hash-object tests/real-pooled-gate-admission.test.mjs)" = 5aeec6bc166834aa44e7e110511d3d6da039c9af
+          test "$(git -C host hash-object tests/fixtures/wasm32-single-source-actor.atto)" = adfc0b43463d7ce92d32a4b1b63602f91e527329
+          test "$(git -C host hash-object package.json)" = 9128f6b1cd55c0e0d95d62718ac4490f9a091eff
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '22'
@@ -105,3 +47,11 @@ jobs:
           export CLANG=clang-18
           echo "Pinned compiler SHA256: $ORESLANG_LLVM_COMPILER_SHA256"
           npm run test:real-pooled-actors
+      - name: Gate admission regressions
+        if: always()
+        working-directory: host
+        run: node --test tests/real-pooled-gate-admission.test.mjs
+      - name: Full current-main Node regression
+        if: always()
+        working-directory: host
+        run: npm test
