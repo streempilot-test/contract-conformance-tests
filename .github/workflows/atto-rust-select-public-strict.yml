@@ -1,0 +1,31 @@
+name: Atto exact Rust full strict compiler and Chromium
+on:
+  push:
+    branches: [ci/atto-rust-select-public-strict-20261126]
+permissions:
+  contents: read
+jobs:
+  strict:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Verify exact anonymous public source
+        env:
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_GLOBAL: /dev/null
+        run: |
+          set -euo pipefail
+          git init source
+          cd source
+          git -c credential.helper= fetch --depth=1 --no-tags https://github.com/atto-lang/atto-source.rs.git a36eccb32fbff874af90fc94303eeb4945ffdcb6
+          git checkout --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = a36eccb32fbff874af90fc94303eeb4945ffdcb6
+          test "$(git rev-parse HEAD^{tree})" = a9f5ae33b1db1429012234564de08da62b2c318a
+          test -z "$(git status --porcelain)"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Full source-owned strict verification
+        working-directory: source
+        run: bash scripts/verify-select-plans-exact-head.sh a36eccb32fbff874af90fc94303eeb4945ffdcb6
