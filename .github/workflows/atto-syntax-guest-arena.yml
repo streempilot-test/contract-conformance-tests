@@ -6,30 +6,31 @@ on:
 permissions:
   contents: read
 jobs:
-  js-mtd:
+  java-rendezvous:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - name: Verify exact public source
         shell: bash
         run: |
           git init -q source
-          git -C source remote add origin https://github.com/atto-lang/atto-source.js.git
-          git -C source fetch --no-tags --depth=1 origin 4a013157c9daea0c022dc0745ed045f60c60cbc3
+          git -C source remote add origin https://github.com/atto-lang/atto-source.java.git
+          git -C source fetch --no-tags --depth=1 origin 03b0566fd2b1f45935e4cc78b2119ba8893be2b3
           git -C source checkout --detach FETCH_HEAD
-          test "$(git -C source rev-parse HEAD)" = "4a013157c9daea0c022dc0745ed045f60c60cbc3"
+          test "$(git -C source rev-parse HEAD)" = "03b0566fd2b1f45935e4cc78b2119ba8893be2b3"
           git -C source rev-parse 'HEAD^{tree}'
-          test "$(git -C source hash-object src/program-v2.mjs)" = "3d290d0b6e4e462bdb717ac88ccbf5dcb461e01f"
-          test "$(git -C source hash-object tests/program-classes-v2.test.mjs)" = "8d13652f5f4df4b5db0e4ec1b76ef15776f45bce"
-          test "$(git -C source hash-object tests/program-return-void-parity-20261111.test.mjs)" = "d8f5de841dbf087280c7c5884b24c448d709fedd"
-          test "$(git -C source rev-parse 'HEAD^{tree}')" = "34a60eef209b0602938ef611a51c700780d0127e"
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+          test "$(git -C source rev-parse 'HEAD^{tree}')" = "a991262537886a437168563f8a5622f9cceccd15"
+          test "$(git -C source hash-object src/main/java/dev/oreslang/parser/Parser.java)" = "4a88aba4daba2627658dbea02f4cb9f6856280c9"
+          test "$(git -C source hash-object src/test/java/dev/oreslang/AttoDiamondDispatchParityTest.java)" = "e396a9011b2956e78a4879e00fd161f65feda4b0"
+          test "$(git -C source hash-object src/test/java/dev/oreslang/InterfaceFncKeywordTest.java)" = "0c08960fae1f26422276dcbe2c2e0f55c57d3bce"
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
         with:
-          node-version: '22'
-      - name: Focused actual compiler regression
+          distribution: temurin
+          java-version: '25'
+      - name: Nominal method and parser regressions
         working-directory: source
-        run: node --test tests/program-classes-v2.test.mjs tests/program-return-void-parity-20261111.test.mjs tests/declarative-exports.test.mjs
-      - name: Full Node regression
+        run: mvn -B -ntp -Dtest=InterfaceFncKeywordTest,AttoDiamondDispatchParityTest,SuspensionAliasRendezvousGuestTest,DeclarativeExportsParserTest -DfailIfNoTests=true -Dsurefire.failIfNoSpecifiedTests=true test
+      - name: Full JVM regression
         if: always()
         working-directory: source
-        run: npm test
+        run: mvn -B -ntp test
