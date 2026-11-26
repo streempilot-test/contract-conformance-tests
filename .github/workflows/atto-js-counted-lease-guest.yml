@@ -1,0 +1,69 @@
+name: Exact conformance baseline differential and Rust fixture census
+on:
+  pull_request:
+    branches: ['main']
+    paths: ['.github/workflows/atto-js-counted-lease-guest.yml']
+permissions: {}
+jobs:
+  conformance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Verify baseline and candidate public trees
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          fetch() {
+            git init "$1"
+            git -C "$1" -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-platform-conformance.git "$2"
+            git -C "$1" -c core.hooksPath=/dev/null checkout --detach FETCH_HEAD
+            test "$(git -C "$1" rev-parse HEAD)" = "$2"
+            test "$(git -C "$1" rev-parse HEAD^{tree})" = "$3"
+            test "$(git -C "$1" write-tree)" = "$3"
+            git -C "$1" diff --exit-code HEAD
+          }
+          fetch base 75e6566d55b5f86f49f3e94fe59cacd728edf786 f0cceed41651a487a00a63c03d3bb460023cf8e2
+          fetch candidate ffa001ca03d15f14fbe67b3189e92c5edeeaf6ba 22e0ccb520c2a4630428c0f26e0aebc412225096
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Exact full baseline versus candidate
+        run: |
+          set -euo pipefail
+          for lane in base candidate; do
+            set +e
+            (cd "$lane" && node --test --test-reporter=tap) > "$RUNNER_TEMP/$lane.tap" 2>&1
+            status=$?
+            set -e
+            echo "$lane status=$status"
+            grep -E '^# (tests|pass|fail|skipped) ' "$RUNNER_TEMP/$lane.tap"
+            grep -E '^not ok [0-9]+ ' "$RUNNER_TEMP/$lane.tap" | sed -E 's/^not ok [0-9]+ -? ?//' | sort -u > "$RUNNER_TEMP/$lane.fail" || true
+            cat "$RUNNER_TEMP/$lane.fail"
+          done
+          echo BASE_ONLY_FAILURES
+          comm -23 "$RUNNER_TEMP/base.fail" "$RUNNER_TEMP/candidate.fail"
+          echo CANDIDATE_ONLY_FAILURES
+          comm -13 "$RUNNER_TEMP/base.fail" "$RUNNER_TEMP/candidate.fail" | tee "$RUNNER_TEMP/new.fail"
+          test ! -s "$RUNNER_TEMP/new.fail"
+      - name: Focused seven repaired harness suites
+        working-directory: candidate
+        run: node --test tests/diagnostic-admission.test.mjs tests/diagnostic-subject.test.mjs tests/executable-evidence.test.mjs tests/five-backend-admission.test.mjs tests/immutable-fixture-snapshot.test.mjs tests/js-backend-registration.test.mjs tests/spawn-exit-status.test.mjs
+  rust-fixtures:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Exact public Rust main
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          git init source
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.rs.git a9924625b0eb4d2952e362e832ce6ad07240cc86
+          git -C source -c core.hooksPath=/dev/null checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = a9924625b0eb4d2952e362e832ce6ad07240cc86
+          test "$(git -C source rev-parse HEAD^{tree})" = c053493a272dc614c62ee6df9527d1b1f1b2dc21
+          test "$(git -C source write-tree)" = c053493a272dc614c62ee6df9527d1b1f1b2dc21
+          git -C source diff --exit-code HEAD
+          test "$(git -C source hash-object tests/fixtures/fail/148-actor-receive-recursive-stack-bound.atto)" = 4a6aadd8805b9d16738fbeb6c390de0ca1ed4620
+      - name: Actual compiler fixture census
+        working-directory: source
+        run: cargo test --locked --test fixtures -- --nocapture
