@@ -1,0 +1,79 @@
+name: Atto exact public select parity wave
+on:
+  push:
+    branches: [ci/atto-public-select-parity-20261126]
+permissions:
+  contents: read
+jobs:
+  exact:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - repo: atto-source.rs
+            head: 913512c1e3d47eaf30a2a643857ea4e76ad45284
+            tree: d135f70c008335f7bf4625888b42484dfa9e69c5
+          - repo: atto-source.js
+            head: b11df1a0cc5a17218b40eab863f66d55833d8e80
+            tree: af6fc629b0e18007ffbb34bca303981b4ad813f4
+          - repo: atto-source.llvm
+            head: 4fa99b486a997d4dc21d2f9834cfff9aab718546
+            tree: 9bdd1110f149f71a8c175b49030a9aafa78d27ab
+          - repo: atto-source.net
+            head: e5ce8509061803f19cf1489d3d91dee878895499
+            tree: 2488bee133e30ca9fbdcf4fb880cecaa301a4ee1
+    steps:
+      - name: Bind public source commit and root tree
+        env:
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_GLOBAL: /dev/null
+          SOURCE_REPO: ${{ matrix.repo }}
+          SOURCE_HEAD: ${{ matrix.head }}
+          SOURCE_TREE: ${{ matrix.tree }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$SOURCE_REPO" in atto-source.rs|atto-source.js|atto-source.llvm|atto-source.net) ;; *) exit 2 ;; esac
+          git init source
+          cd source
+          git -c credential.helper= fetch --depth=1 --no-tags "https://github.com/atto-lang/$SOURCE_REPO.git" "$SOURCE_HEAD"
+          git checkout --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = "$SOURCE_HEAD"
+          test "$(git rev-parse HEAD^{tree})" = "$SOURCE_TREE"
+          test -z "$(git status --porcelain)"
+          printf 'EXACT_PUBLIC_SOURCE %s %s\n' "$SOURCE_HEAD" "$SOURCE_TREE"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        if: matrix.repo == 'atto-source.js' || matrix.repo == 'atto-source.rs'
+        with:
+          node-version: '22'
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        if: matrix.repo == 'atto-source.net'
+        with:
+          dotnet-version: '10.0.x'
+      - name: Rust compiler and real Wasm guest verification
+        if: matrix.repo == 'atto-source.rs'
+        working-directory: source
+        env:
+          SOURCE_HEAD: ${{ matrix.head }}
+        run: bash scripts/verify-select-plans-exact-head.sh "$SOURCE_HEAD"
+      - name: Exact-tree JavaScript host fence tests
+        if: matrix.repo == 'atto-source.js'
+        working-directory: source
+        run: node --test tests/select-continuation-execution-lease.test.mjs tests/select-continuation-lifecycle-stress.test.mjs
+      - name: Exact-tree native LLVM host fence tests
+        if: matrix.repo == 'atto-source.llvm'
+        working-directory: source
+        run: |
+          set -euo pipefail
+          g++ -std=c++17 -O2 -DNDEBUG -Wall -Wextra -Werror -pthread -Isrc/main/cpp tests/native_select_continuation_fence_test.cpp -o /tmp/select-fence
+          /tmp/select-fence
+      - name: Exact-tree NativeAOT host select probe
+        if: matrix.repo == 'atto-source.net'
+        working-directory: source
+        run: |
+          set -euo pipefail
+          dotnet publish verification/Ores.Net.SelectProbe/Ores.Net.SelectProbe.csproj -c Release -r linux-x64 -o /tmp/select-probe -warnaserror
+          test "$(/tmp/select-probe/Ores.Net.SelectProbe)" = DOTNET_SELECT_NATIVE_PASS
