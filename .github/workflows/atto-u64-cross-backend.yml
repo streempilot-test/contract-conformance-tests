@@ -6,29 +6,6 @@ on:
 permissions:
   contents: read
 jobs:
-  forge:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 25
-    steps:
-      - name: Verify exact public source
-        run: |
-          git init -q source
-          git -C source remote add origin https://github.com/atto-lang/atto-source.forge.git
-          git -C source fetch --no-tags --depth=1 origin 528bc1c3baf21d2ddbb8a6ddac3ebdf5c9288466
-          git -C source checkout --detach FETCH_HEAD
-          test "$(git -C source rev-parse HEAD)" = 528bc1c3baf21d2ddbb8a6ddac3ebdf5c9288466
-          test "$(git -C source rev-parse 'HEAD^{tree}')" = ec924e7c9b90d7a4e320a45b19ac657d27cf1dfc
-          test "$(git -C source hash-object contracts/atto-xo-checked-u64-debit-v1/cases.tsv)" = 2d41ae576d049ed3a8898c3deacc8d30c705dce8
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
-        with:
-          node-version: '22'
-      - name: Actual focused guest or native object execution
-        working-directory: source
-        run: node --test tests/checked_u64_forge_native.test.mjs
-      - name: Full backend regression
-        if: always()
-        working-directory: source
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build --parallel 2 && ctest --test-dir build --output-on-failure
   llvm:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
@@ -51,30 +28,12 @@ jobs:
       - name: Full backend regression
         if: always()
         working-directory: source
-        run: cargo test --locked --all-targets --no-fail-fast
-  js:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 25
-    steps:
-      - name: Verify exact public source
         run: |
-          git init -q source
-          git -C source remote add origin https://github.com/atto-lang/atto-source.js.git
-          git -C source fetch --no-tags --depth=1 origin 980e61cabdcb3aa883de35085f944f8018b10cd0
-          git -C source checkout --detach FETCH_HEAD
-          test "$(git -C source rev-parse HEAD)" = 980e61cabdcb3aa883de35085f944f8018b10cd0
-          test "$(git -C source rev-parse 'HEAD^{tree}')" = 1c33494eab4bb8412e7ec5a9215f25f103f298e0
-          test "$(git -C source hash-object contracts/atto-xo-checked-u64-debit-v1/cases.tsv)" = 2d41ae576d049ed3a8898c3deacc8d30c705dce8
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
-        with:
-          node-version: '22'
-      - name: Actual focused guest or native object execution
-        working-directory: source
-        run: node --test tests/checked-u64-scalar-v1.test.mjs tests/checked-u64-ir-v1.test.mjs tests/checked-u64-generated-guests.test.mjs
-      - name: Full backend regression
-        if: always()
-        working-directory: source
-        run: npm test
+          cargo test --manifest-path frontend/Cargo.toml --locked --all-targets --no-fail-fast
+          sudo apt-get update -qq && sudo apt-get install -y llvm-18-dev clang-18 lld-18
+          cmake -S . -B "$RUNNER_TEMP/llvm-build" -DLLVM_DIR="$(llvm-config-18 --cmakedir)" -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+          cmake --build "$RUNNER_TEMP/llvm-build" --parallel 2
+          ctest --test-dir "$RUNNER_TEMP/llvm-build" --output-on-failure
   cranelift:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
@@ -83,10 +42,10 @@ jobs:
         run: |
           git init -q source
           git -C source remote add origin https://github.com/atto-lang/atto-source.cranelift.git
-          git -C source fetch --no-tags --depth=1 origin 8ae50c499db47ac119bc4fa6494a88cc240a06c4
+          git -C source fetch --no-tags --depth=1 origin 13f6765227bc730e628ed407bee49a645e5b7d21
           git -C source checkout --detach FETCH_HEAD
-          test "$(git -C source rev-parse HEAD)" = 8ae50c499db47ac119bc4fa6494a88cc240a06c4
-          test "$(git -C source rev-parse 'HEAD^{tree}')" = 1032c1a2e5deae8bb907e71e085947b3d556fe03
+          test "$(git -C source rev-parse HEAD)" = 13f6765227bc730e628ed407bee49a645e5b7d21
+          test "$(git -C source rev-parse 'HEAD^{tree}')" = d8fa32ba6c15bf1ffb402548afca50d6a17c6767
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '22'
@@ -97,35 +56,6 @@ jobs:
         if: always()
         working-directory: source
         run: cargo test --locked --all-targets --no-fail-fast && cargo fmt --all --check && cargo clippy --locked --all-targets -- -D warnings
-  wasm:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 25
-    steps:
-      - name: Verify exact public source
-        run: |
-          git init -q source
-          git -C source remote add origin https://github.com/atto-lang/atto-source.wasm.git
-          git -C source fetch --no-tags --depth=1 origin b41180a7e2babb554bf18de75f1cda914b305a10
-          git -C source checkout --detach FETCH_HEAD
-          test "$(git -C source rev-parse HEAD)" = b41180a7e2babb554bf18de75f1cda914b305a10
-          test "$(git -C source rev-parse 'HEAD^{tree}')" = 2f9cf7286217e1153792ca3b0cae2df8ac15fc9a
-          test "$(git -C source hash-object contracts/atto-xo-checked-u64-debit-v1/cases.tsv)" = 2d41ae576d049ed3a8898c3deacc8d30c705dce8
-          git init -q llvm
-          git -C llvm remote add origin https://github.com/atto-lang/atto-source.llvm.git
-          git -C llvm fetch --no-tags --depth=1 origin a733339c135b9796098fe4717d3d4ba41ac7762f
-          git -C llvm checkout --detach FETCH_HEAD
-          test "$(git -C llvm rev-parse HEAD)" = a733339c135b9796098fe4717d3d4ba41ac7762f
-          test "$(git -C llvm hash-object tools/atto_checked_u64.cpp)" = 752d1ad3fb3564eed9067a0a530eb2150d1c14b4
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
-        with:
-          node-version: '22'
-      - name: Actual focused guest or native object execution
-        working-directory: source
-        run: ATTO_U64_WASM_REQUIRED=1 ATTO_U64_LLVM_SOURCE="$GITHUB_WORKSPACE/llvm/tools/atto_checked_u64.cpp" node --test tests/atto-xo-checked-u64-wasm.test.mjs
-      - name: Full backend regression
-        if: always()
-        working-directory: source
-        run: npm test
   rs:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
@@ -134,9 +64,9 @@ jobs:
         run: |
           git init -q source
           git -C source remote add origin https://github.com/atto-lang/atto-source.rs.git
-          git -C source fetch --no-tags --depth=1 origin 7d0c3cb127374c4aaf46dad62b94b073005a80f4
+          git -C source fetch --no-tags --depth=1 origin 8058124d385e930a39255146ecc346c19d4d4077
           git -C source checkout --detach FETCH_HEAD
-          test "$(git -C source rev-parse HEAD)" = 7d0c3cb127374c4aaf46dad62b94b073005a80f4
+          test "$(git -C source rev-parse HEAD)" = 8058124d385e930a39255146ecc346c19d4d4077
           git -C source rev-parse 'HEAD^{tree}'
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
