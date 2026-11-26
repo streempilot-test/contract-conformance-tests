@@ -1,0 +1,57 @@
+name: Atto LLVM Wasm NET Forge exact verification
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/atto-llvm-wasm-net-forge.yml']
+permissions:
+  contents: read
+jobs:
+  real-wasm-actor:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Fetch exact public compiler and host commits
+        shell: bash
+        run: |
+          git init -q compiler
+          git -C compiler remote add origin https://github.com/atto-lang/atto-source.llvm.git
+          git -C compiler fetch --no-tags --depth=1 origin d6b1836be9bf05d85530c229c72043db21b9e9f9
+          git -C compiler checkout --detach FETCH_HEAD
+          test "$(git -C compiler rev-parse HEAD)" = d6b1836be9bf05d85530c229c72043db21b9e9f9
+          git -C compiler rev-parse 'HEAD^{tree}'
+          git init -q host
+          git -C host remote add origin https://github.com/atto-lang/atto-source.wasm.git
+          git -C host fetch --no-tags --depth=1 origin 04972ef4ccdc3bb628a19f1c2950f4797af040f3
+          git -C host checkout --detach FETCH_HEAD
+          test "$(git -C host rev-parse HEAD)" = 04972ef4ccdc3bb628a19f1c2950f4797af040f3
+          test "$(git -C host hash-object scripts/verify-real-source-pooled-actor.mjs)" = 0fe7d4fd900114cb381cea75e873367a99e6f4d7
+          test "$(git -C host rev-parse 'HEAD^{tree}')" = cfe865e4e877ba431bd0b43cd2527c55951034e9
+          test "$(git -C host hash-object tests/real-source-pooled-actor.test.mjs)" = 565725d1e27b4ca9d969fbcabf0d9f846f45cbc9
+          test "$(git -C host hash-object tests/real-pooled-gate-admission.test.mjs)" = 5aeec6bc166834aa44e7e110511d3d6da039c9af
+          test "$(git -C host hash-object tests/fixtures/wasm32-single-source-actor.atto)" = adfc0b43463d7ce92d32a4b1b63602f91e527329
+          test "$(git -C host hash-object package.json)" = 9128f6b1cd55c0e0d95d62718ac4490f9a091eff
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Build native LLVM source compiler
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y llvm-18-dev clang-18 lld-18
+          cmake -S compiler -B "$RUNNER_TEMP/compiler-build" -DLLVM_DIR="$(llvm-config-18 --cmakedir)" -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
+          cmake --build "$RUNNER_TEMP/compiler-build" --target oreslang-llvmc --parallel 2
+      - name: Execute mandatory real pooled actors
+        working-directory: host
+        run: |
+          export ORESLANG_LLVM_COMPILER="$RUNNER_TEMP/compiler-build/oreslang-llvmc"
+          export ORESLANG_LLVM_COMPILER_SHA256="$(sha256sum "$ORESLANG_LLVM_COMPILER" | cut -d ' ' -f1)"
+          export CLANG=clang-18
+          echo "Pinned compiler SHA256: $ORESLANG_LLVM_COMPILER_SHA256"
+          npm run test:real-pooled-actors
+      - name: Gate admission regressions
+        if: always()
+        working-directory: host
+        run: node --test tests/real-pooled-gate-admission.test.mjs
+      - name: Full current-main Node regression
+        if: always()
+        working-directory: host
+        run: npm test
