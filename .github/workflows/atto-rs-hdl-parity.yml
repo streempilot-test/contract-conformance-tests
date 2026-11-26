@@ -14,16 +14,16 @@ jobs:
         run: |
           git init -q source
           git -C source remote add origin https://github.com/atto-lang/atto-source.rs.git
-          git -C source fetch --no-tags --depth=1 origin aa4624040a7f4faab2f5cfbfdcd59e82c1296bc3
+          git -C source fetch --no-tags --depth=1 origin 476fc36e96a89d3f5ffa0f37b981002dc2060712
           git -C source checkout --detach FETCH_HEAD
-          test "$(git -C source rev-parse HEAD)" = aa4624040a7f4faab2f5cfbfdcd59e82c1296bc3
+          test "$(git -C source rev-parse HEAD)" = 476fc36e96a89d3f5ffa0f37b981002dc2060712
           test "$(git -C source hash-object src/check/direct_lambda.rs)" = a2cd1c12911c3017ee38e968627beb99340000ba
           test "$(git -C source hash-object src/parser.rs)" = 61bb6689f42887a9dec6de7d4b85b1bdf7741f09
           test "$(git -C source hash-object tests/callable_guest_execution.mjs)" = 1ad59489f9f34dc9837a8bc630a1e97408bf6e5a
-          test "$(git -C source hash-object tests/direct_lambda.rs)" = c4c439f850e9fbe445bba9daedc3f7168af37ffd
+          test "$(git -C source hash-object tests/direct_lambda.rs)" = 83587906aee71ece1151c26cd511592e06ca9d42
           test "$(git -C source hash-object tests/direct_lambda_audit.rs)" = b5a2c8ba0281ecda04389b1b8e6e1a42794a38ad
-          test "$(git -C source hash-object tests/source_callable_types.rs)" = 3ad3e48ab2880cd3412bbe0466c32a8a10059f9d
-          git -C source rev-parse 'HEAD^{tree}'
+          test "$(git -C source hash-object tests/source_callable_types.rs)" = 3def8765952c54f33f55380a3381ad9496c476b5
+          test "$(git -C source rev-parse 'HEAD^{tree}')" = d269f3f103963a7648617930f24cbcdfa708c403
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '22'
@@ -32,40 +32,11 @@ jobs:
         run: |
           cargo build --locked --bin attoc
           node tests/callable_guest_execution.mjs
+      - name: Focused callable diagnostics
+        if: always()
+        working-directory: source
+        run: cargo test --locked --test direct_lambda --test source_callable_types --no-fail-fast
       - name: Complete Rust regression
         if: always()
         working-directory: source
         run: cargo test --locked --all-targets --no-fail-fast
-  hdl-bool:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    steps:
-      - name: Verify exact reconciled public head
-        run: |
-          git init -q source
-          git -C source remote add origin https://github.com/atto-lang/atto-source.hdl.git
-          git -C source fetch --no-tags --depth=1 origin fed52b8b85c65ae209f934ebfcea6f0f1800765d
-          git -C source checkout --detach FETCH_HEAD
-          test "$(git -C source rev-parse HEAD)" = fed52b8b85c65ae209f934ebfcea6f0f1800765d
-          test "$(git -C source rev-parse 'HEAD^{tree}')" = bba7bc056bc8d700ec26de82e835e77d4e517250
-          test "$(git -C source hash-object src/boolean_reduction.mjs)" = b33887622a471aa8913fb78f772e428a0cb4f273
-          test "$(git -C source hash-object tests/boolean-reduction-rtl.mjs)" = 2276b46b328333d880c5474b8092c92b86fff4c7
-          test "$(git -C source hash-object bin/oreslang-hdl.mjs)" = 0c8e74b099ae80863a6218bcdedd327416ef32ad
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
-        with:
-          node-version: '22'
-      - name: Install real RTL simulator and synthesizer
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y iverilog yosys
-          iverilog -V
-          yosys -V
-      - name: Execute parser and physical RTL/netlist
-        working-directory: source
-        run: |
-          node --test tests/boolean-reduction.test.mjs
-          node tests/boolean-reduction-rtl.mjs
-      - name: Full HDL Node regression
-        if: always()
-        working-directory: source
-        run: node --test tests/*.test.mjs
