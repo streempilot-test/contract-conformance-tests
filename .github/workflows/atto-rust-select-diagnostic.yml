@@ -19,10 +19,10 @@ jobs:
           set -euo pipefail
           git init source
           cd source
-          git -c credential.helper= fetch --depth=1 --no-tags https://github.com/atto-lang/atto-source.rs.git 57890f52eae7e2db6f0fefc6117f18abc65c0318
+          git -c credential.helper= fetch --depth=1 --no-tags https://github.com/atto-lang/atto-source.rs.git a36eccb32fbff874af90fc94303eeb4945ffdcb6
           git checkout --detach FETCH_HEAD
-          test "$(git rev-parse HEAD)" = 57890f52eae7e2db6f0fefc6117f18abc65c0318
-          test "$(git rev-parse HEAD^{tree})" = 76312372c999d4eae6b4c904927b96d08447fde1
+          test "$(git rev-parse HEAD)" = a36eccb32fbff874af90fc94303eeb4945ffdcb6
+          test "$(git rev-parse HEAD^{tree})" = a9f5ae33b1db1429012234564de08da62b2c318a
           test -z "$(git status --porcelain)"
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
