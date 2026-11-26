@@ -1,0 +1,46 @@
+name: Atto public exact Java actor continuation regression
+on:
+  push:
+    branches: [ci/atto-java-public-continuation-1974-20261126]
+permissions:
+  contents: read
+jobs:
+  exact-java:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Bind publicly accessible source head and root tree without checkout credentials
+        env:
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_GLOBAL: /dev/null
+          SOURCE_HEAD: 24e6317f271c340708e6989bde7e72f90e4d3f72
+          SOURCE_TREE: 1eed539f3743c1d4512723890acb71aff0e40a79
+        shell: bash
+        run: |
+          set -euo pipefail
+          git init source
+          cd source
+          git -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.java.git "$SOURCE_HEAD"
+          git checkout --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = "$SOURCE_HEAD"
+          test "$(git rev-parse HEAD^{tree})" = "$SOURCE_TREE"
+          test -z "$(git status --porcelain)"
+          printf 'EXACT_PUBLIC_SOURCE %s %s\n' "$SOURCE_HEAD" "$SOURCE_TREE"
+      - uses: graalvm/setup-graalvm@27b360dbb857524eaf0b4c4cef364d38e5b4f173
+        with:
+          version: '25.3'
+          java-version: '25'
+          distribution: 'graalvm'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Compile production Java and execute actor ledger, STOP, upgrade and guest suites
+        working-directory: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          java -version
+          mvn -B -ntp -Dores.runtime.carriers=native -Dtest=ActorContinuationLedgerTest,ActorContinuationLedgerIntegrationTest,ActorContinuationTerminalResourceFailureTest,ActorHotUpgradeTest,ActorSelectContinuationLifecycleTest,ActorContinuationCapacityTest,ActorContinuationTeardownTest,ContinuationCarrierGuestTest,SuspendsInlineContinuationGuestTest test
+          git rev-parse HEAD HEAD^{tree}
+      - name: Full exact source verification
+        working-directory: source
+        run: mvn -B -ntp -Dores.runtime.carriers=native verify
