@@ -1,0 +1,80 @@
+name: Atto exact native owner-drop and Java baseline
+on:
+  push:
+    branches: [ci/atto-select-native-parity-owner-drop-20261126]
+permissions:
+  contents: read
+jobs:
+  exact:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - backend: llvm
+            head: 3549415823440db204416680b81895eb1324afd5
+            tree: 81201c9e2d53257db73cc7c8a6dea03fdf79fa8e
+          - backend: forge
+            head: b2acfe0bc8c4af0645ffe488b5ef2007c149f714
+            tree: 33cfe6f3667ab2278ad434c5bd3ffb3ca0d2f9ef
+          - backend: cranelift
+            head: 541f6629e5662965321d4bd06272fc26b2c429b7
+            tree: 2a2395ebd33cbf76c772bfba0c4a0bee91f8a99f
+          - backend: java
+            head: 90ee98c36bb29bdc915b0d6c3f2d00b9da347db9
+            tree: d5c2639175943253489991fecd4d9a1b6514de04
+    steps:
+      - name: Verify public source identity
+        env:
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_GLOBAL: /dev/null
+          BACKEND: ${{ matrix.backend }}
+          HEAD_SHA: ${{ matrix.head }}
+          TREE_SHA: ${{ matrix.tree }}
+        run: |
+          set -euo pipefail
+          case "$BACKEND" in llvm|forge|cranelift|java) ;; *) exit 2 ;; esac
+          git init source
+          cd source
+          git -c credential.helper= fetch --depth=1 --no-tags "https://github.com/atto-lang/atto-source.$BACKEND.git" "$HEAD_SHA"
+          git checkout --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
+          test "$(git rev-parse HEAD^{tree})" = "$TREE_SHA"
+          test -z "$(git status --porcelain)"
+      - uses: graalvm/setup-graalvm@27b360dbb857524eaf0b4c4cef364d38e5b4f173
+        if: matrix.backend == 'java'
+        with:
+          version: '25.3'
+          java-version: '25'
+          distribution: graalvm
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Java parent baseline full suite (not candidate pass)
+        if: matrix.backend == 'java'
+        working-directory: source
+        run: mvn -B -ntp -Dores.runtime.carriers=native verify
+      - name: LLVM exact native host regressions
+        if: matrix.backend == 'llvm'
+        working-directory: source
+        run: |
+          set -euo pipefail
+          g++ -std=c++17 -O2 -DNDEBUG -Wall -Wextra -Werror -pthread -Isrc/main/cpp tests/native_select_continuation_fence_test.cpp -o /tmp/llvm-fence
+          /tmp/llvm-fence
+      - name: Forge exact host and sanitizers
+        if: matrix.backend == 'forge'
+        working-directory: source
+        run: |
+          set -euo pipefail
+          g++ -std=c++20 -O2 -pthread -Wall -Wextra -Werror -I. verification/select_continuation_lease_host.cpp -o /tmp/forge-fence
+          /tmp/forge-fence
+          g++ -std=c++20 -O1 -g -pthread -fsanitize=address,undefined -fno-omit-frame-pointer -I. verification/select_continuation_lease_host.cpp -o /tmp/forge-fence-san
+          ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1 /tmp/forge-fence-san
+      - name: Cranelift exact standalone host test
+        if: matrix.backend == 'cranelift'
+        working-directory: source
+        run: |
+          set -euo pipefail
+          rustc --version
+          rustc --edition=2021 --test -O -D warnings src/select_continuation_fence.rs -o /tmp/cranelift-fence
+          /tmp/cranelift-fence
