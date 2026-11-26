@@ -1,0 +1,64 @@
+name: Atto reconciled Cranelift and parser parity
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/atto-reconciled-cranelift-java-llvm.yml']
+permissions:
+  contents: read
+jobs:
+  cranelift:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Verify public exact head tree and blobs
+        shell: bash
+        run: |
+          git init -q source
+          git -C source remote add origin https://github.com/atto-lang/atto-source.cranelift.git
+          git -C source fetch --no-tags --depth=1 origin 42b36a2ec93c1b3dc8a014baf812db04a36cd913
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = "42b36a2ec93c1b3dc8a014baf812db04a36cd913"
+          git -C source rev-parse 'HEAD^{tree}'
+          test "$(git -C source rev-parse 'HEAD^{tree}')" = "2c51102a4045b3164a149ccecc2d609bbe41ccd0"
+          test "$(git -C source hash-object src/main.rs)" = "5238095556922ba498f03519ea9327686818ee17"
+          test "$(git -C source hash-object src/select_continuation_fence.rs)" = "a1eab934e9560b9340e577181e2cff10c06232a2"
+          test "$(git -C source hash-object tests/declarative_export_trailing_boundary.rs)" = "0cd166ba3d71094bca2011e92a9ce9223c5689bd"
+      - name: Execute physical lease stress
+        working-directory: source
+        run: |
+          rustc --edition=2021 -D warnings --test src/select_continuation_fence.rs -o /tmp/atto-fence
+          /tmp/atto-fence
+      - name: Native compiler full regression
+        working-directory: source
+        run: cargo test --locked --all-targets --no-fail-fast
+      - name: Formatting
+        if: always()
+        working-directory: source
+        run: cargo fmt --all -- --check
+      - name: Strict Clippy
+        if: always()
+        working-directory: source
+        run: cargo clippy --locked --all-targets -- -D warnings
+  llvm-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Verify public exact head and changed blobs
+        shell: bash
+        run: |
+          git init -q source
+          git -C source remote add origin https://github.com/atto-lang/atto-source.llvm.git
+          git -C source fetch --no-tags --depth=1 origin 66f4ba79e37d417db475d95db7592341a2aad7e0
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = "66f4ba79e37d417db475d95db7592341a2aad7e0"
+          git -C source rev-parse 'HEAD^{tree}'
+          test "$(git -C source hash-object frontend/src/lexer.rs)" = "4ea70373094ea8f00e1b848c7f5b327a39662a03"
+          test "$(git -C source hash-object frontend/src/parser.rs)" = "b5146d9a7ce93d8bcb439dca0708a2ef3e058008"
+          test "$(git -C source hash-object frontend/tests/typed_actor_receives.rs)" = "7c08658a9e56a694d459483a3defbb0762a2ab88"
+          test "$(git -C source hash-object frontend/src/directed_pipe.rs)" = "c092fd769e85daef8577d22bd04db3aa684aa63f"
+      - name: Focused bounded actor frontend tests
+        working-directory: source/frontend
+        run: cargo test --locked --test typed_actor_receives
+      - name: Frontend full regression
+        working-directory: source/frontend
+        run: cargo test --locked --all-targets --no-fail-fast
