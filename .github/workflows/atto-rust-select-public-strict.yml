@@ -18,14 +18,14 @@ jobs:
           set -euo pipefail
           git init source
           cd source
-          git -c credential.helper= fetch --depth=1 --no-tags https://github.com/atto-lang/atto-source.rs.git a36eccb32fbff874af90fc94303eeb4945ffdcb6
+          git -c credential.helper= fetch --depth=1 --no-tags https://github.com/atto-lang/atto-source.rs.git 75cf440c14ca33ff420c8aa97953c4558bbb4748
           git checkout --detach FETCH_HEAD
-          test "$(git rev-parse HEAD)" = a36eccb32fbff874af90fc94303eeb4945ffdcb6
-          test "$(git rev-parse HEAD^{tree})" = a9f5ae33b1db1429012234564de08da62b2c318a
+          test "$(git rev-parse HEAD)" = 75cf440c14ca33ff420c8aa97953c4558bbb4748
+          test "$(git rev-parse HEAD^{tree})" = fe4addde2232afbb76e05cbb0711247e78d0c623
           test -z "$(git status --porcelain)"
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '22'
       - name: Full source-owned strict verification
         working-directory: source
-        run: bash scripts/verify-select-plans-exact-head.sh a36eccb32fbff874af90fc94303eeb4945ffdcb6
+        run: bash scripts/verify-select-plans-exact-head.sh 75cf440c14ca33ff420c8aa97953c4558bbb4748
