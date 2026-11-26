@@ -1,0 +1,43 @@
+name: Atto Rust exact-tree diagnostic compiler and guest
+on:
+  push:
+    branches: [ci/atto-rust-select-diagnostic-20261126]
+permissions:
+  contents: read
+jobs:
+  exact-diagnostic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Verify exact public commit and tree
+        env:
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_GLOBAL: /dev/null
+        shell: bash
+        run: |
+          set -euo pipefail
+          git init source
+          cd source
+          git -c credential.helper= fetch --depth=1 --no-tags https://github.com/atto-lang/atto-source.rs.git 913512c1e3d47eaf30a2a643857ea4e76ad45284
+          git checkout --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = 913512c1e3d47eaf30a2a643857ea4e76ad45284
+          test "$(git rev-parse HEAD^{tree})" = d135f70c008335f7bf4625888b42484dfa9e69c5
+          test -z "$(git status --porcelain)"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Install pinned Rust
+        run: rustup toolchain install 1.85.1 --profile minimal --target wasm32-unknown-unknown --component rustfmt --component clippy
+      - name: Compiler and select regression diagnostics, not promotion
+        id: diagnostic
+        working-directory: source
+        run: |
+          set -euo pipefail
+          cargo +1.85.1 test --locked --test v2_select_plans
+          cargo +1.85.1 build --locked --bin attoc
+          node tests/node-v2-select-plans-guest.mjs
+      - name: Required strict formatter gate (not waived)
+        if: always() && steps.diagnostic.outcome != 'skipped'
+        working-directory: source
+        run: cargo +1.85.1 fmt --all -- --check
