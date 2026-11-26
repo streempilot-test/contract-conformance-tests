@@ -1,0 +1,47 @@
+name: Atto current-main NET physical retirement race
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/atto-net-physical-retirement-race.yml']
+permissions:
+  contents: read
+jobs:
+  aot:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            rid: linux-x64
+          - os: windows-2025
+            rid: win-x64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    steps:
+      - name: Verify pinned public source
+        shell: bash
+        run: |
+          git init -q source
+          git -C source remote add origin https://github.com/atto-lang/atto-source.net.git
+          git -C source fetch --depth=1 --no-tags origin ef3e7207fcc1e3da26b179e06d8d47e522b7318f
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = ef3e7207fcc1e3da26b179e06d8d47e522b7318f
+          git -C source rev-parse 'HEAD^{tree}'
+          test "$(git -C source hash-object verification/Ores.Net.Tests/ActorArenaExternalCompletionSelfTest.cs)" = a7fb97df02b0e080eea6afa7f61268a76fd578f9
+          test "$(git -C source hash-object runtime/Ores.Net.Runtime/ActorArena.cs)" = 002cd3b94cd015b69fbddac5027d10a8777bba2c
+      - name: SDK and CoreCLR probe
+        shell: bash
+        working-directory: source
+        run: |
+          dotnet --version
+          dotnet run -c Release --project verification/Ores.Net.ActorExternalCompletionProbe/Ores.Net.ActorExternalCompletionProbe.csproj -p:PublishAot=false
+      - name: Strict NativeAOT publish and run
+        shell: bash
+        working-directory: source
+        run: |
+          dotnet publish verification/Ores.Net.ActorExternalCompletionProbe/Ores.Net.ActorExternalCompletionProbe.csproj -c Release -r ${{ matrix.rid }} -o "$RUNNER_TEMP/atto-race"
+          if [[ "${{ matrix.rid }}" == win-* ]]; then
+            "$RUNNER_TEMP/atto-race/Ores.Net.ActorExternalCompletionProbe.exe"
+          else
+            "$RUNNER_TEMP/atto-race/Ores.Net.ActorExternalCompletionProbe"
+          fi
