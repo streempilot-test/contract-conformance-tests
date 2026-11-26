@@ -1,0 +1,84 @@
+name: Atto reconciled Cranelift and parser parity
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/atto-reconciled-cranelift-java-llvm.yml']
+permissions:
+  contents: read
+jobs:
+  cranelift:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Verify public exact head tree and blobs
+        shell: bash
+        run: |
+          git init -q source
+          git -C source remote add origin https://github.com/atto-lang/atto-source.cranelift.git
+          git -C source fetch --no-tags --depth=1 origin dbd3caa14c99ab145ffc940048936b13dde0e459
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = "dbd3caa14c99ab145ffc940048936b13dde0e459"
+          git -C source rev-parse 'HEAD^{tree}'
+          test "$(git -C source rev-parse 'HEAD^{tree}')" = "f83a94b2cbbb69feb08eea591aef6b4218a51659"
+          test "$(git -C source hash-object src/main.rs)" = "5238095556922ba498f03519ea9327686818ee17"
+          test "$(git -C source hash-object src/select_continuation_fence.rs)" = "a1eab934e9560b9340e577181e2cff10c06232a2"
+      - name: Execute physical lease stress
+        working-directory: source
+        run: |
+          rustc --edition=2021 -D warnings --test src/select_continuation_fence.rs -o /tmp/atto-fence
+          /tmp/atto-fence
+      - name: Native compiler full regression
+        working-directory: source
+        run: cargo test --locked --all-targets
+      - name: Formatting
+        if: always()
+        working-directory: source
+        run: cargo fmt --all -- --check
+      - name: Strict Clippy
+        if: always()
+        working-directory: source
+        run: cargo clippy --locked --all-targets -- -D warnings
+  java:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Verify public exact head and changed blobs
+        shell: bash
+        run: |
+          git init -q source
+          git -C source remote add origin https://github.com/atto-lang/atto-source.java.git
+          git -C source fetch --no-tags --depth=1 origin 47fb225c043ae6656bcb2af349fd48eb8f5692ec
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = "47fb225c043ae6656bcb2af349fd48eb8f5692ec"
+          git -C source rev-parse 'HEAD^{tree}'
+          test "$(git -C source hash-object src/main/java/dev/oreslang/parser/Parser.java)" = "e69f91a30782182e02cc57c930d2a294eeba17bc"
+          test "$(git -C source hash-object src/test/java/dev/oreslang/DeclarativeExportsParserTest.java)" = "5b522baec62756dbe4377caf55f1a25d572abc1b"
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: Actual declarative export parser and core trap regression
+        working-directory: source
+        run: mvn -B -ntp -Dtest=DeclarativeExportsParserTest,TrapFailurePolicyTest,TrapResultSemanticsTest,CanonicalCallerTrapParityV1Test,AttoStrictTrapSourceAdmissionTest,GuestOrdinaryThrowTest,TypedValueMatchParameterTest,CheckedUnwrapPipelineExecutionTest -DfailIfNoTests=true -Dsurefire.failIfNoSpecifiedTests=true test
+  llvm-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Verify public exact head and changed blobs
+        shell: bash
+        run: |
+          git init -q source
+          git -C source remote add origin https://github.com/atto-lang/atto-source.llvm.git
+          git -C source fetch --no-tags --depth=1 origin 8265b0b63dc2e6084dccbf65dbed6a120d16f03b
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = "8265b0b63dc2e6084dccbf65dbed6a120d16f03b"
+          git -C source rev-parse 'HEAD^{tree}'
+          test "$(git -C source hash-object frontend/src/lexer.rs)" = "4ea70373094ea8f00e1b848c7f5b327a39662a03"
+          test "$(git -C source hash-object frontend/src/parser.rs)" = "b5146d9a7ce93d8bcb439dca0708a2ef3e058008"
+          test "$(git -C source hash-object frontend/tests/typed_actor_receives.rs)" = "7c08658a9e56a694d459483a3defbb0762a2ab88"
+      - name: Focused bounded actor frontend tests
+        working-directory: source/frontend
+        run: cargo test --locked --test typed_actor_receives
+      - name: Frontend full regression
+        working-directory: source/frontend
+        run: cargo test --locked --all-targets
