@@ -1,0 +1,80 @@
+name: Atto merged heads and current-main quiescence
+on:
+  pull_request:
+    branches: [main]
+permissions: {}
+jobs:
+  rs:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Exact public source identity
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          git init source
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.rs.git 465e519f4cfcccbbbaa1c17af4e623dcca3fc8ab
+          git -C source -c core.hooksPath=/dev/null checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = 465e519f4cfcccbbbaa1c17af4e623dcca3fc8ab
+          test "$(git -C source write-tree)" = "$(git -C source rev-parse 'HEAD^{tree}')"
+          test "$(git -C source hash-object tests/checked-shift-distance.mjs)" = e80a93ab44b7df8676b87c92289890f231b79b76
+          git -C source diff --exit-code HEAD
+          git -C source rev-parse HEAD 'HEAD^{tree}'
+      - name: Execute real regression
+        working-directory: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo build --locked --bin attoc
+          ATTOC="$PWD/target/debug/attoc" node tests/checked-shift-distance.mjs
+          cargo test --locked --no-fail-fast
+  cranelift:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Exact public source identity
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          git init source
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.cranelift.git d8b38251185560bf37f2f0f7cc2888fa8f77cca7
+          git -C source -c core.hooksPath=/dev/null checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = d8b38251185560bf37f2f0f7cc2888fa8f77cca7
+          test "$(git -C source write-tree)" = "$(git -C source rev-parse 'HEAD^{tree}')"
+          test "$(git -C source hash-object src/select_continuation_fence.rs)" = a1eab934e9560b9340e577181e2cff10c06232a2
+          git -C source diff --exit-code HEAD
+          git -C source rev-parse HEAD 'HEAD^{tree}'
+      - name: Execute real regression
+        working-directory: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo fmt --all -- --check
+          cargo clippy --all-targets --locked -- -D warnings
+          cargo test --all-targets --locked
+  net:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Exact public source identity
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          git init source
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.net.git 5c6ad930ec148e7ef9587359d09c4decc0e164a9
+          git -C source -c core.hooksPath=/dev/null checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = 5c6ad930ec148e7ef9587359d09c4decc0e164a9
+          test "$(git -C source write-tree)" = "$(git -C source rev-parse 'HEAD^{tree}')"
+          test "$(git -C source hash-object verification/Ores.Net.Tests/ActorArenaExternalCompletionSelfTest.cs)" = dd0ca07409cb0b7b1bd3cbff8d1dc55df463e2de
+          git -C source diff --exit-code HEAD
+          git -C source rev-parse HEAD 'HEAD^{tree}'
+      - name: Execute real regression
+        working-directory: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet run --project verification/Ores.Net.Tests/Ores.Net.Tests.csproj -c Release
+          dotnet publish verification/Ores.Net.ActorExternalCompletionProbe/Ores.Net.ActorExternalCompletionProbe.csproj -c Release -r linux-x64 -o "$RUNNER_TEMP/atto-aot"
+          file "$RUNNER_TEMP/atto-aot/Ores.Net.ActorExternalCompletionProbe"
+          "$RUNNER_TEMP/atto-aot/Ores.Net.ActorExternalCompletionProbe" | tee "$RUNNER_TEMP/atto-aot.log"
+          grep -Fx ATTO_NET_MULTI_EXTERNAL_COMPLETION_QUIESCENCE_PASS "$RUNNER_TEMP/atto-aot.log"
