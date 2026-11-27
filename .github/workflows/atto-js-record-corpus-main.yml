@@ -1,0 +1,30 @@
+name: Atto JS Record corpus exact main
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/atto-js-record-corpus-main.yml'
+permissions:
+  contents: read
+jobs:
+  js:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Pin public compiler and shared corpus
+        run: |
+          set -eu
+          git init guest-source
+          cd guest-source
+          git -c credential.helper= fetch --depth=1 https://github.com/atto-lang/atto-source.js.git d3b6a4f0c858c833f19bfaeeec0d35c37bab0bed
+          git checkout --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = d3b6a4f0c858c833f19bfaeeec0d35c37bab0bed
+          git rev-parse HEAD^{tree}
+          test "$(git hash-object src/compiler.mjs)" = 91f77bfa89b7793f0f2c563833823e40388029a0
+          test "$(git hash-object tests/nominal-record-method-parameters.test.mjs)" = b41accdc297bdc6849d81d1db9f15926018dda79
+          test "$(git hash-object tests/fixtures/collection-subtypes-v1-candidate.json)" = 1cc0ae23fe56db7c3891d30881d28efa66619c21
+      - name: Execute exact candidate Record guests and parameters
+        working-directory: guest-source
+        run: node --test tests/nominal-record-methods-scalar.test.mjs tests/nominal-record-method-parameters.test.mjs
+      - name: Full JS regression
+        working-directory: guest-source
+        run: npm test
