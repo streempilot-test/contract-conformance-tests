@@ -16,8 +16,8 @@ jobs:
             tree: 4276280041407d6ace18656a09dcfb0f66a1ceb8
           - backend: wasm
             repo: atto-lang/atto-source.wasm
-            head: e0e3659cb4b6681d21999441f87171644cbcbe54
-            tree: c2a7f1a13e14b4358b25326f6e0f1628ff2f6be2
+            head: 32a1f92ea993f3c4036f42b172d21d30d4ed6234
+            tree: 283542bcb633d5f074b73f42fc80f7988f0f7e0d
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:
