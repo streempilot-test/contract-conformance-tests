@@ -1,0 +1,36 @@
+name: Exact Java canonical stateless value-loop guest gate
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/java-stateless-loop.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  java:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Authenticate exact public source
+        run: |
+          set -euo pipefail
+          git init src
+          git -C src -c credential.helper= -c http.extraHeader= fetch --depth=1 --no-tags https://github.com/atto-lang/atto-source.java.git c30fc136e79ce29dcc87c273c3368837e59f1c1a
+          git -C src checkout --detach FETCH_HEAD
+          test "$(git -C src rev-parse HEAD)" = c30fc136e79ce29dcc87c273c3368837e59f1c1a
+          test "$(git -C src rev-parse HEAD^{tree})" = 229119865e04c312953cc2a043e423ad0b6459a2
+          test "$(git -C src write-tree)" = 229119865e04c312953cc2a043e423ad0b6459a2
+      - name: GraalVM 25
+        uses: graalvm/setup-graalvm@27b360dbb857524eaf0b4c4cef364d38e5b4f173
+        with:
+          version: '25.3'
+          java-version: '25'
+          distribution: graalvm
+      - name: Real Java Truffle guests and ordinary loop regressions
+        run: |
+          set -euo pipefail
+          cd src
+          mvn -B -ntp '-P!native-thread-unix' -Dtest=AttoStatelessValueLoopTest,BlockLoopControlFlowTest,RoutineAndLoopTest,AttoCheckedI64ProfileTest -Dsurefire.failIfNoSpecifiedTests=true clean test
+          test -s target/surefire-reports/TEST-dev.oreslang.AttoStatelessValueLoopTest.xml
+          grep '<testsuite ' target/surefire-reports/TEST-dev.oreslang.AttoStatelessValueLoopTest.xml
+          git diff --exit-code
