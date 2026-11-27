@@ -1,0 +1,74 @@
+name: Exact Rust binding and Java value-loop retest
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/value-loop-binding-java-retest.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  rust:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Authenticate and execute actual Rust compiler
+        run: |
+          set -euo pipefail
+          git init src
+          git -C src -c credential.helper= -c http.extraHeader= fetch --depth=1 --no-tags https://github.com/atto-lang/atto-source.rs.git 535175f38ed09a1c4fcd5e3fd4acce42ce7d0233
+          git -C src checkout --detach FETCH_HEAD
+          test "$(git -C src rev-parse HEAD)" = 535175f38ed09a1c4fcd5e3fd4acce42ce7d0233
+          test "$(git -C src write-tree)" = 5b7a27121bd73668305f47bda04a6eca6e45e830
+          cd src
+          rustup toolchain install 1.85.1 --profile minimal --target wasm32-unknown-unknown
+          cargo +1.85.1 build --locked --release --bin attoc
+          cargo +1.85.1 rustc --locked --release --lib --target wasm32-unknown-unknown --crate-type cdylib -- -C link-arg=--max-memory=67108864
+          ATTOC=target/release/attoc node tests/conformance.mjs
+          cargo +1.85.1 test --locked --test value_loop_tuple_boundary --test tuple_binding_admission --test grouped_spawn_admission
+          git diff --exit-code
+  java:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - role: candidate
+            commit: ea83ff9b315d616301040d31539d9389d0996a4c
+            tree: 680f6014b04571179b4e7a843db257fea8b4a6b3
+            tests: AttoStatelessValueLoopTest,BlockLoopControlFlowTest,RoutineAndLoopTest,AttoCheckedI64ProfileTest
+          - role: baseline
+            commit: 4f71562eae8ac3d7c03a938c3978d4c7b82e9562
+            tree: 1b7ec1568dcb2976aa582f933af52483dba485e9
+            tests: BlockLoopControlFlowTest,RoutineAndLoopTest,AttoCheckedI64ProfileTest
+    steps:
+      - name: Authenticate exact public source
+        env:
+          COMMIT: ${{ matrix.commit }}
+          TREE: ${{ matrix.tree }}
+        run: |
+          set -euo pipefail
+          git init src
+          git -C src -c credential.helper= -c http.extraHeader= fetch --depth=1 --no-tags https://github.com/atto-lang/atto-source.java.git "$COMMIT"
+          git -C src checkout --detach FETCH_HEAD
+          test "$(git -C src rev-parse HEAD)" = "$COMMIT"
+          test "$(git -C src write-tree)" = "$TREE"
+      - uses: graalvm/setup-graalvm@27b360dbb857524eaf0b4c4cef364d38e5b4f173
+        with:
+          version: '25.3'
+          java-version: '25'
+          distribution: graalvm
+      - name: Execute actual Java guest and regression tests
+        env:
+          TESTS: ${{ matrix.tests }}
+        run: |
+          set -euo pipefail
+          cd src
+          mvn -B -ntp '-P!native-thread-unix' "-Dtest=$TESTS" -Dsurefire.failIfNoSpecifiedTests=true clean test
+      - name: Print actual JUnit results
+        if: always()
+        run: |
+          set -euo pipefail
+          cd src
+          grep '<testsuite ' target/surefire-reports/TEST-dev.oreslang.*.xml
+          git diff --exit-code
