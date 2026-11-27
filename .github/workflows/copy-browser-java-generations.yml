@@ -69,3 +69,26 @@ jobs:
           test "$(git -C corpus write-tree)" = a92047523d52a32887ca58ebcf2d019fcf5f47a4
           cd corpus
           node --test tests/copy-readonly-sharing-v1.test.mjs tests/copy-readonly-rust-wasm-runner.test.mjs
+  rust:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Fetch exact public current-main Rust copy candidate
+        run: |
+          set -euo pipefail
+          git init source
+          git -C source -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.rs.git 94a6e3e5cd39e6fcd64f81a284dbcd841c95f93e
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = 94a6e3e5cd39e6fcd64f81a284dbcd841c95f93e
+          test "$(git -C source rev-parse HEAD^{tree})" = 439c647ef7f7a6511c9d8ed49711b54596c6158e
+          test "$(git -C source write-tree)" = 439c647ef7f7a6511c9d8ed49711b54596c6158e
+      - name: Execute copy and current-main ownership regressions
+        working-directory: source
+        run: |
+          set -euo pipefail
+          cargo test --locked --test copy_doublebang
+          cargo build --locked --bin attoc
+          node tests/copy_doublebang_guest.mjs
+          cargo test --locked --lib
+          rustup target add wasm32-unknown-unknown
+          cargo build --locked --release --target wasm32-unknown-unknown --lib
