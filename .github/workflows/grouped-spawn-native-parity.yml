@@ -12,8 +12,8 @@ jobs:
         include:
           - backend: llvm
             repo: atto-lang/atto-source.llvm
-            head: d4a8bc1732514a8de827d0a203246ca1df20c52c
-            tree: b8373937a18e5faf33d3deadb8d1564fd46a3403
+            head: 81ebc13c6a9137dbeaf6398cbfdedd82944fd3e1
+            tree: 4276280041407d6ace18656a09dcfb0f66a1ceb8
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:
