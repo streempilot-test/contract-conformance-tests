@@ -1,0 +1,28 @@
+name: Atto NET FIFO current tree host verification
+on:
+  push:
+    branches: [ci/atto-net-fifo402-20261127]
+permissions:
+  contents: read
+jobs:
+  net:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Verify exact public commit and tree
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          git init guest
+          cd guest
+          git -c credential.helper= fetch --depth=1 https://github.com/atto-lang/atto-source.net.git 57db8b170142a413e460649c896c7242134039d7
+          git checkout --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = 57db8b170142a413e460649c896c7242134039d7
+          test "$(git rev-parse HEAD^{tree})" = 4564ad0a587cb38b3542bed6edfcae47fcc20eb7
+          git fsck --full
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Execute actual host CoreCLR and NativeAOT probes
+        working-directory: guest
+        run: bash verification/Ores.Net.ControlPlaneArenaProbe/run-host-probe.sh
