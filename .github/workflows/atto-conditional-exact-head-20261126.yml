@@ -13,10 +13,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - lane: js
-            repo: atto-source.js
-            head: 4d1f708271a0fb6e9020c89bbb2e94b3ec0a0a66
-            tree: 8353488bba4bfe8b0ea1008bfa71ea6ab5440942
+          - lane: rust
+            repo: atto-source.rs
+            head: 18c4444704f23874fc6c7fab129be67d3dedc606
+            tree: 7bd320f19522ce46e3680a3c5bca8e05ac1b1454
+          - lane: clippy
+            repo: atto-source.rs
+            head: faa51a6e4e15166a3de59ae44d536ef11aaf0af3
+            tree: ed3d5739352d1b993ba920d171e66aa8a01e907b
     steps:
       - name: Fetch only public exact Git source with no credentials
         env:
