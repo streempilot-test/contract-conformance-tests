@@ -1,0 +1,39 @@
+name: Exact Java contextual scalar guest regression
+on:
+  push:
+    branches: ['verify/atto-java-contextual-20261127']
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      SOURCE_HEAD: 054e1839e2efb85357714dc2a40faf39e64401b3
+      SOURCE_TREE: 6af736e5d57b0e960c8133717dd2a57e2ed64903
+      GIT_TERMINAL_PROMPT: '0'
+    steps:
+      - name: Fetch exact public source
+        run: |
+          set -euo pipefail
+          git init source
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.java.git "$SOURCE_HEAD"
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = "$SOURCE_HEAD"
+          test "$(git -C source rev-parse HEAD^{tree})" = "$SOURCE_TREE"
+          git -C source fsck --full --no-reflogs
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: Execute actual Graal guest and related parser regressions
+        working-directory: source
+        run: |
+          set -euo pipefail
+          java -version
+          mvn -B -ntp -Dtest=ContextualIntGuestTest,AttoStatelessValueLoopTest test
+      - name: Verify source unchanged
+        run: |
+          set -euo pipefail
+          test "$(git -C source rev-parse HEAD^{tree})" = "$SOURCE_TREE"
+          git -C source diff --exit-code HEAD --
