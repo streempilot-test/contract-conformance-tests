@@ -1,0 +1,78 @@
+name: Atto patched LLVM compiled guest and sanitizer gates
+on:
+  pull_request:
+    branches: [main]
+permissions: {}
+jobs:
+  llvm-guest:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Verify exact public source
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          git init atto-source.llvm
+          git -C atto-source.llvm -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.llvm.git refs/heads/hardening/source-normal-leaf-reuse-20261126
+          git -C atto-source.llvm -c core.hooksPath=/dev/null checkout --detach FETCH_HEAD
+          test "$(git -C atto-source.llvm rev-parse HEAD)" = 511829067db67547d412e5b4d34d16d6128b1e82
+          test "$(git -C atto-source.llvm write-tree)" = "$(git -C atto-source.llvm rev-parse 'HEAD^{tree}')"
+          test "$(git -C atto-source.llvm hash-object tests/source_actor_e2e.py)" = 28b9a65e2c25db53997935964ee3365a351574ff
+          test "$(git -C atto-source.llvm hash-object src/main/cpp/oreslang/runtime/SourceActorBootstrap.c)" = a29d6cbe526ccf51992e3699e1081e45e33da395
+          git -C atto-source.llvm diff --exit-code HEAD
+          git -C atto-source.llvm rev-parse HEAD 'HEAD^{tree}'
+      - name: Select LLVM 18 development toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v llvm-config-18 || ! command -v clang-18 || ! test -f "$(llvm-config-18 --cmakedir)/LLVMConfig.cmake"; then
+            sudo apt-get update
+            sudo apt-get install -y llvm-18-dev clang-18 libclang-rt-18-dev
+          fi
+          llvm-config-18 --version
+          clang-18 --version
+      - name: Build compiler and execute actual actor guests
+        shell: bash
+        working-directory: atto-source.llvm
+        run: |
+          set -euo pipefail
+          cmake -S . -B /tmp/atto-llvm-build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DLLVM_DIR="$(llvm-config-18 --cmakedir)"
+          cmake --build /tmp/atto-llvm-build --target oreslang-llvmc -j2
+          python3 tests/source_actor_e2e.py --compiler /tmp/atto-llvm-build/oreslang-llvmc --clang "$(command -v clang-18)" --root "$PWD"
+          python3 tests/source_actor_e2e.py --compiler /tmp/atto-llvm-build/oreslang-llvmc --clang "$(command -v clang-18)" --root "$PWD" --sanitize
+  host-sanitizers:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - cc: clang
+            flags: -fsanitize=address,undefined
+          - cc: gcc
+            flags: -fsanitize=thread
+    steps:
+      - name: Verify public exact source
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          git init atto-source.llvm
+          git -C atto-source.llvm -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.llvm.git refs/heads/hardening/source-normal-leaf-reuse-20261126
+          git -C atto-source.llvm -c core.hooksPath=/dev/null checkout --detach FETCH_HEAD
+          test "$(git -C atto-source.llvm rev-parse HEAD)" = 511829067db67547d412e5b4d34d16d6128b1e82
+          test "$(git -C atto-source.llvm write-tree)" = 6e349348675897cf16f4a2b867bce0703ad7cd0b
+          test "$(git -C atto-source.llvm hash-object tests/source_actor_one_for_one_restart_test.c)" = 17b222c6de583ff7d337c226a79d52ffeb527456
+          test "$(git -C atto-source.llvm hash-object src/main/cpp/oreslang/runtime/SourceActorBootstrap.c)" = a29d6cbe526ccf51992e3699e1081e45e33da395
+      - name: Build and exercise integrated native lifecycle
+        shell: bash
+        working-directory: atto-source.llvm
+        run: |
+          set -euo pipefail
+          ${{ matrix.cc }} -O1 -g ${{ matrix.flags }} -fno-omit-frame-pointer -no-pie -std=c11 -pthread -Wall -Wextra -Wpedantic -Werror -UNDEBUG -DORESLANG_SOURCE_ACTOR_TESTING -Isrc/main/cpp tests/source_actor_one_for_one_restart_test.c src/main/cpp/oreslang/runtime/{ActorOwnedI64Heap,NativeActorScheduler,NativeOresVM,NativeActorFuture,SourceActorBootstrap,NativeActorLogicalFramesV1,NativeExecutionContextStore,NativeContinuationStore,NativeAwaitTraceBridge,NativeLogicalTrace}.c -o /tmp/atto-restart
+          export ASAN_OPTIONS=halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1 TSAN_OPTIONS=halt_on_error=1
+          timeout 90s /tmp/atto-restart
+          for mode in --sealed-flush --exhaust --capacity --reuse --failed-reuse --failed-stop-reuse; do
+            timeout 90s /tmp/atto-restart "$mode" 2>&1 | tail -8
+          done
