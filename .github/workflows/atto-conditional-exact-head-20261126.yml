@@ -1,0 +1,117 @@
+name: Atto public exact-source conditional and regression qualification
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/atto-conditional-exact-head-20261126.yml']
+permissions:
+  contents: read
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - lane: rust
+            repo: atto-source.rs
+            head: 188b25dbd0f3c35da9d519093b6832cbafc2f388
+            tree: aff36681d0d13f9713bfee39908c96e002519020
+          - lane: clippy
+            repo: atto-source.rs
+            head: faa51a6e4e15166a3de59ae44d536ef11aaf0af3
+            tree: ed3d5739352d1b993ba920d171e66aa8a01e907b
+          - lane: java
+            repo: atto-source.java
+            head: 0e764031aa2c51fe24dcb0ecaef1e12c35ca5cfa
+            tree: 10568a36a7634150b975604a8782753156e4d2b9
+    steps:
+      - name: Fetch only public exact Git source with no credentials
+        env:
+          SOURCE_REPO: ${{ matrix.repo }}
+          SOURCE_HEAD: ${{ matrix.head }}
+          SOURCE_TREE: ${{ matrix.tree }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$SOURCE_HEAD" =~ ^[a-f0-9]{40}$ && "$SOURCE_TREE" =~ ^[a-f0-9]{40}$ ]]
+          [[ "$SOURCE_REPO" =~ ^atto-(source\.(rs|js|java)|format|spec)$ ]]
+          export GIT_TERMINAL_PROMPT=0
+          export GIT_CONFIG_NOSYSTEM=1
+          export GIT_CONFIG_GLOBAL=/dev/null
+          mkdir source
+          git -C source init -q
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 "https://github.com/atto-lang/$SOURCE_REPO.git" "$SOURCE_HEAD"
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = "$SOURCE_HEAD"
+          test "$(git -C source rev-parse 'HEAD^{tree}')" = "$SOURCE_TREE"
+          git -C source diff --quiet HEAD --
+          test -z "$(git -C source ls-files --others --exclude-standard)"
+          test -z "$(git -C source ls-files --others --ignored --exclude-standard)"
+          echo "VERIFIED_SOURCE_HEAD=$SOURCE_HEAD"
+          echo "VERIFIED_SOURCE_TREE=$SOURCE_TREE"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Install pinned Rust
+        if: matrix.lane == 'rust' || matrix.lane == 'clippy'
+        run: |
+          rustup toolchain install 1.85.1 --profile minimal --target wasm32-unknown-unknown
+          rustup component add clippy --toolchain 1.85.1
+          rustup default 1.85.1
+      - name: Install pinned GraalVM Java 25
+        if: matrix.lane == 'java'
+        uses: graalvm/setup-graalvm@27b360dbb857524eaf0b4c4cef364d38e5b4f173
+        with:
+          java-version: '25'
+          version: '25.3'
+          distribution: graalvm
+          github-token: ${{ github.token }}
+      - name: Execute scoped actual compiler tests
+        working-directory: source
+        env:
+          LANE: ${{ matrix.lane }}
+          RUST_MIN_STACK: "16777216"
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$LANE" in
+            rust)
+              cargo test --locked --test canonical_keyword_conditionals_main --test ternary_explicit_arm
+              cargo test --locked
+              cargo clippy --locked --all-targets -- -D warnings
+              ;;
+            clippy)
+              cargo clippy --locked --all-targets -- -D warnings
+              cargo test --locked
+              ;;
+            js)
+              npm run test:conditionals
+              npm run test:conditional-adt
+              npm test
+              ;;
+            js-u64)
+              npm test
+              npm run check
+              ;;
+            formatter)
+              cargo test --locked --test canonical_six_conditionals_main
+              cargo test --locked
+              node --test tests/*.test.mjs
+              ;;
+            spec)
+              node --check tests/conditional-expression-v2-contract.test.mjs
+              node --test tests/conditional-expression-v2-contract.test.mjs
+              ;;
+            java)
+              java -version
+              mvn -B -ntp '-P!native-thread-unix' -Dtest=CanonicalSixConditionalMainTest,CanonicalConditionalJoinCurrentMainTest -Dsurefire.failIfNoSpecifiedTests=true clean test
+              report=target/surefire-reports/TEST-dev.oreslang.CanonicalSixConditionalMainTest.xml
+              test -s "$report"
+              grep -Eq '<testsuite[^>]*tests="[1-9][0-9]*"' "$report"
+              if grep -Eq '<testsuite[^>]*(errors|failures|skipped)="[1-9][0-9]*"' "$report"; then exit 1; fi
+              ;;
+            *) exit 1 ;;
+          esac
+          git diff --quiet HEAD --
+          echo "SCOPED_EXECUTED_TESTS_COMPLETE=$LANE"

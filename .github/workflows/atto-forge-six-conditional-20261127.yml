@@ -1,0 +1,46 @@
+name: Forge exact-source six-form native scalar qualification
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/atto-forge-six-conditional-20261127.yml']
+permissions:
+  contents: read
+jobs:
+  native-guest:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        cxx: [g++, clang++]
+    steps:
+      - name: Fetch and verify public source without credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          mkdir source
+          git -C source init -q
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.forge.git 0b48393ecfa4ce0c221e0d9ab647b35bc0129482
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = 0b48393ecfa4ce0c221e0d9ab647b35bc0129482
+          test "$(git -C source rev-parse 'HEAD^{tree}')" = b993cf89a3ea923580daa2e84c5410cba55615f9
+          git -C source diff --quiet HEAD --
+          test -z "$(git -C source ls-files --others --exclude-standard)"
+          test -z "$(git -C source ls-files --others --ignored --exclude-standard)"
+          git -C source rev-parse HEAD 'HEAD^{tree}'
+      - name: Compile actual native compiler
+        working-directory: source
+        env:
+          CXX: ${{ matrix.cxx }}
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON -DCMAKE_CXX_COMPILER="$CXX"
+          cmake --build build --parallel 2
+      - name: Execute native guests and full CTest regression
+        working-directory: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          ctest --test-dir build --output-on-failure -V -R '^forge_scalar_early_return_native$' --no-tests=error
+          ctest --test-dir build --output-on-failure --no-tests=error
+          git diff --quiet HEAD --

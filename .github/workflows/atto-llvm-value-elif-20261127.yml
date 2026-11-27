@@ -1,0 +1,54 @@
+name: LLVM exact-source value elif native qualification
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/atto-llvm-value-elif-20261127.yml']
+permissions:
+  contents: read
+jobs:
+  native-guest:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - lane: candidate
+            head: fe85c73e13459b3bd19057510a5307048216f7a3
+            tree: 21f76884ea01d2b75f1ab94b1a63079decc65487
+    steps:
+      - name: Fetch public exact Git source without credentials
+        env:
+          SOURCE_HEAD: ${{ matrix.head }}
+          SOURCE_TREE: ${{ matrix.tree }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          mkdir source
+          git -C source init -q
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.llvm.git "$SOURCE_HEAD"
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = "$SOURCE_HEAD"
+          test "$(git -C source rev-parse 'HEAD^{tree}')" = "$SOURCE_TREE"
+          git -C source diff --quiet HEAD --
+          test -z "$(git -C source ls-files --others --exclude-standard)"
+          test -z "$(git -C source ls-files --others --ignored --exclude-standard)"
+          git -C source rev-parse HEAD 'HEAD^{tree}'
+      - name: Install native LLVM toolchain
+        run: sudo apt-get update && sudo apt-get install -y build-essential cmake clang llvm-dev python3
+      - name: Compile actual LLVM source compiler
+        working-directory: source
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+          cmake --build build --target oreslang-llvmc --parallel 2
+      - name: Execute O0/O2 guest matrix and existing conditional regressions
+        working-directory: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ matrix.lane }}" == candidate ]]; then
+            python3 tests/value_elif_native_matrix.py --compiler "$PWD/build/oreslang-llvmc" --clang "$(command -v clang)"
+          fi
+          python3 tests/ternary_native_matrix.py --compiler "$PWD/build/oreslang-llvmc" --clang "$(command -v clang)"
+          git diff --quiet HEAD --
