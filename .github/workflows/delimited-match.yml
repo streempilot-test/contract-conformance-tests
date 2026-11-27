@@ -1,0 +1,37 @@
+name: Atto Rust 752 exact standalone match slice
+on:
+  push:
+    branches: [ci/atto-rust757-delimited-ternary-20261127]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  standalone-scalar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Verify exact fixture blobs
+        run: node audit.mjs --integrity-only
+      - name: Fetch public candidate and verify source identity
+        run: |
+          git init compiler
+          git -C compiler fetch --depth=1 https://github.com/atto-lang/atto-source.rs.git 0dba2ba998e1f677454d4fa2612796df3fc71a49
+          git -C compiler checkout --detach FETCH_HEAD
+          test "$(git -C compiler rev-parse HEAD)" = 0dba2ba998e1f677454d4fa2612796df3fc71a49
+          test "$(git -C compiler rev-parse HEAD^{tree})" = 63365b0c8af3c16620fea202f3fb2ec18118a710
+          test "$(git hash-object compiler/src/parser.rs)" = 99ebb78f5544ddb12c5c36da9cf5e6bb018910c7
+          test "$(git hash-object compiler/tests/delimited_match_subject.rs)" = 96f976bbb6f8fec0749bc45e4585d96de4b649e9
+      - name: Execute production parser and checker tests
+        working-directory: compiler
+        run: cargo test --locked --test delimited_match_subject
+      - name: Execute root Rust regression suite
+        working-directory: compiler
+        run: cargo test --locked
+      - name: Build real CLI
+        working-directory: compiler
+        run: cargo build --locked --release --bin attoc
+      - name: Execute real Wasm guests and negative controls
+        run: node audit.mjs compiler/target/release/attoc

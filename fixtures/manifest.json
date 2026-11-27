@@ -1,0 +1,288 @@
+{
+  "schemaVersion": 1,
+  "scope": "pipeline-match-await-v1",
+  "evidence": "unexecuted source fixtures; backend verdicts require exact-source execution receipts",
+  "cases": [
+    {
+      "id": "result-braces",
+      "expect": "exit",
+      "exit": 42,
+      "file": "result-braces.atto",
+      "sourceGitBlobSha1": "6f71b643356a48a7f79055cca099df775b38e30d",
+      "confirmedBackends": []
+    },
+    {
+      "id": "result-end",
+      "expect": "exit",
+      "exit": 43,
+      "file": "result-end.atto",
+      "sourceGitBlobSha1": "625c54c6bd14530378e0e009ef565e35b090e470",
+      "confirmedBackends": []
+    },
+    {
+      "id": "scalar-braces",
+      "expect": "exit",
+      "exit": 42,
+      "file": "scalar-braces.atto",
+      "sourceGitBlobSha1": "1511ea565674248df212d8ded010025a95e8bae3",
+      "confirmedBackends": []
+    },
+    {
+      "id": "immediate-await",
+      "expect": "exit",
+      "exit": 42,
+      "file": "immediate-await.atto",
+      "sourceGitBlobSha1": "0fcfc1c001f863d5f4d4ff8dcd0d669309f8e510",
+      "confirmedBackends": []
+    },
+    {
+      "id": "future-await",
+      "expect": "exit",
+      "exit": 42,
+      "file": "future-await.atto",
+      "sourceGitBlobSha1": "63513b0aad5e5bb285a83023b0ab9d56dac89f03",
+      "confirmedBackends": []
+    },
+    {
+      "id": "duplicate-subject",
+      "expect": "reject",
+      "file": "duplicate-subject.atto",
+      "sourceGitBlobSha1": "b9b1cb82a2a207ae60ce36077c35b753948186b7",
+      "confirmedBackends": []
+    },
+    {
+      "id": "nonexhaustive",
+      "expect": "reject",
+      "file": "nonexhaustive.atto",
+      "sourceGitBlobSha1": "37ad8c86b2f57dca0ff83ec5592b548856ab3e55",
+      "confirmedBackends": []
+    },
+    {
+      "id": "extra-await-operand",
+      "expect": "reject",
+      "file": "extra-await-operand.atto",
+      "sourceGitBlobSha1": "afeeb6ee1cae434207fe11c565f252d6ff311f4d",
+      "confirmedBackends": []
+    },
+    {
+      "id": "strict-std-await",
+      "expect": "reject",
+      "file": "strict-std-await.atto",
+      "sourceGitBlobSha1": "3c3451226ca3110bfdcf48ae772050806404da25",
+      "confirmedBackends": []
+    },
+    {
+      "id": "conditional-receiver",
+      "expect": "exit",
+      "exit": 30,
+      "file": "conditional-receiver.atto",
+      "sourceGitBlobSha1": "19182f78495e50c0a0186a4de69df5b5b195d4c1",
+      "confirmedBackends": []
+    },
+    {
+      "id": "ternary-receiver",
+      "expect": "exit",
+      "exit": 30,
+      "file": "ternary-receiver.atto",
+      "sourceGitBlobSha1": "fd9d35f9a107c7b194ac663fe64ee803130dc790",
+      "confirmedBackends": []
+    },
+    {
+      "id": "conditional-chain",
+      "expect": "exit",
+      "exit": 100,
+      "file": "conditional-chain.atto",
+      "sourceGitBlobSha1": "ba71100721cc223a3b7a7ed6643ff34e9cd75dec",
+      "confirmedBackends": []
+    },
+    {
+      "id": "conditional-missing-else",
+      "expect": "reject",
+      "file": "conditional-missing-else.atto",
+      "sourceGitBlobSha1": "bb2e082235e1d86acc258be0a679a6abb18cd41d",
+      "confirmedBackends": []
+    },
+    {
+      "id": "conditional-non-bool",
+      "expect": "reject",
+      "file": "conditional-non-bool.atto",
+      "sourceGitBlobSha1": "7da9c3ffb7b8df5da1ea6b6bf7bf75a4212abc94",
+      "confirmedBackends": []
+    },
+    {
+      "id": "directional-right",
+      "expect": "exit",
+      "exit": 42,
+      "file": "directional-right.atto",
+      "sourceGitBlobSha1": "6a95b9821e4d99455b439bc13dd44de44392689a",
+      "confirmedBackends": []
+    },
+    {
+      "id": "directional-left",
+      "expect": "exit",
+      "exit": 42,
+      "file": "directional-left.atto",
+      "sourceGitBlobSha1": "5770fd7e2e4cf36b4d84b6cd2d09734035a7366c",
+      "confirmedBackends": []
+    },
+    {
+      "id": "directional-const",
+      "expect": "exit",
+      "exit": 30,
+      "file": "directional-const.atto",
+      "sourceGitBlobSha1": "f68a106cc1af20f3ad4bf9aa0e64d83bbe30395f",
+      "confirmedBackends": []
+    },
+    {
+      "id": "trapped-call",
+      "expect": "exit",
+      "exit": 42,
+      "file": "trapped-call.atto",
+      "sourceGitBlobSha1": "dace6ae93766cedb465e23dd7f5b46e807db8b0f",
+      "confirmedBackends": []
+    },
+    {
+      "id": "bare-trap-reject",
+      "expect": "reject",
+      "file": "bare-trap-reject.atto",
+      "sourceGitBlobSha1": "b0701a3a675cb0f847860720a4cfed3554262ae0",
+      "confirmedBackends": []
+    },
+    {
+      "id": "directional-duplicate",
+      "expect": "reject",
+      "file": "directional-duplicate.atto",
+      "sourceGitBlobSha1": "aa8db575e5db9f8bdaabc5d38d0b82922ba923f3",
+      "confirmedBackends": []
+    },
+    {
+      "id": "native-switch-value",
+      "expect": "exit",
+      "exit": 42,
+      "file": "native-switch-value.atto",
+      "sourceGitBlobSha1": "103baa583222c1320e9ab714f8c402bca212037a",
+      "confirmedBackends": []
+    },
+    {
+      "id": "native-switch-return",
+      "expect": "exit",
+      "exit": 42,
+      "file": "native-switch-return.atto",
+      "sourceGitBlobSha1": "a86cac8e15a820b4cd3bcbdb57a4ce1c43aa8e67",
+      "confirmedBackends": []
+    },
+    {
+      "id": "native-if-binding",
+      "expect": "exit",
+      "exit": 42,
+      "file": "native-if-binding.atto",
+      "sourceGitBlobSha1": "d7f2375b8277ee390c0db1acdcc9ab5e14988b2d",
+      "confirmedBackends": []
+    },
+    {
+      "id": "native-match-binding",
+      "expect": "exit",
+      "exit": 42,
+      "file": "native-match-binding.atto",
+      "sourceGitBlobSha1": "d029b11105afcfdfca595ab4e13c0591eb68fa4c",
+      "confirmedBackends": []
+    },
+    {
+      "id": "native-switch-multi-root",
+      "expect": "reject",
+      "file": "native-switch-multi-root.atto",
+      "sourceGitBlobSha1": "3107c2e8c8795a8d5ec85dc14db472b137cbdebc",
+      "confirmedBackends": []
+    },
+    {
+      "id": "native-switch-nonexhaustive",
+      "expect": "reject",
+      "file": "native-switch-nonexhaustive.atto",
+      "sourceGitBlobSha1": "ff73eb72e6f654bbfebd5aa6fab5921609ee2f01",
+      "confirmedBackends": []
+    },
+    {
+      "id": "native-binding-escape",
+      "expect": "reject",
+      "file": "native-binding-escape.atto",
+      "sourceGitBlobSha1": "237303f93daa08f2804f1e137c4525c5a7ba5fa3",
+      "confirmedBackends": []
+    },
+    {
+      "id": "delimited-single-subject",
+      "expect": "exit",
+      "exit": 42,
+      "file": "delimited-single-subject.atto",
+      "sourceGitBlobSha1": "b093612f0c6af4e862ad594b629b54659cc99bce",
+      "confirmedBackends": []
+    },
+    {
+      "id": "delimited-switch-product",
+      "expect": "exit",
+      "exit": 42,
+      "file": "delimited-switch-product.atto",
+      "sourceGitBlobSha1": "3b156b096dfc338431bbccc33356b1bd1b6778d6",
+      "confirmedBackends": []
+    },
+    {
+      "id": "delimited-computed-product",
+      "expect": "exit",
+      "exit": 42,
+      "file": "delimited-computed-product.atto",
+      "sourceGitBlobSha1": "fdedb8f37860ae6b434bf9c7e73ef4a9ad56c79a",
+      "confirmedBackends": []
+    },
+    {
+      "id": "delimited-nested-product",
+      "expect": "exit",
+      "exit": 42,
+      "file": "delimited-nested-product.atto",
+      "sourceGitBlobSha1": "c2b8e602275f15eb1665ec97b5b9d43ecb59f469",
+      "confirmedBackends": []
+    },
+    {
+      "id": "delimited-recursive-fib",
+      "expect": "exit",
+      "exit": 55,
+      "file": "delimited-recursive-fib.atto",
+      "sourceGitBlobSha1": "fb37d3e02a10da3e5d85dcdc2840a53670717131",
+      "confirmedBackends": []
+    },
+    {
+      "id": "native-tuple-destructure",
+      "expect": "exit",
+      "exit": 42,
+      "file": "native-tuple-destructure.atto",
+      "sourceGitBlobSha1": "5effe3d17f6aa53628c636da333b5abe1a761ce0",
+      "confirmedBackends": []
+    },
+    {
+      "id": "delimited-unresolved",
+      "expect": "reject",
+      "file": "delimited-unresolved.atto",
+      "sourceGitBlobSha1": "7d4e2c404f11d40f7365fcc0efe125584de4c05b",
+      "confirmedBackends": []
+    },
+    {
+      "id": "native-tuple-duplicate",
+      "expect": "reject",
+      "file": "native-tuple-duplicate.atto",
+      "sourceGitBlobSha1": "992fe53d170b24d7cf7f5a73b9ccff5490b9739f",
+      "confirmedBackends": []
+    },
+    {
+      "id": "native-tuple-arity",
+      "expect": "reject",
+      "file": "native-tuple-arity.atto",
+      "sourceGitBlobSha1": "0705bd2a29fab62a29d7d2515c7e6879f60d3569",
+      "confirmedBackends": []
+    },
+    {
+      "id": "delimited-empty",
+      "expect": "reject",
+      "file": "delimited-empty.atto",
+      "sourceGitBlobSha1": "6f11c2f3bdbf1380cad3e41dcc90f0d0c377dd4a",
+      "confirmedBackends": []
+    }
+  ]
+}
