@@ -1,7 +1,7 @@
 name: Atto LLVM scoped dispatch exact native guests
 on:
   push:
-    branches: [ci/atto-llvm1071-procedural-dispatch-20261127]
+    branches: [ci/atto-llvm1071-dispatch-trap-20261127]
   pull_request:
 permissions:
   contents: read
@@ -13,10 +13,10 @@ jobs:
       - name: Fetch and verify exact public source
         run: |
           git init source
-          git -C source fetch --depth=1 https://github.com/atto-lang/atto-source.llvm.git f03713066c17a27a65f7949921ffcbbe135f80a7
+          git -C source fetch --depth=1 https://github.com/atto-lang/atto-source.llvm.git eeb0b879f9eb3cb356af0f04b089d24c6fef414e
           git -C source checkout --detach FETCH_HEAD
-          test "$(git -C source rev-parse HEAD)" = f03713066c17a27a65f7949921ffcbbe135f80a7
-          test "$(git -C source rev-parse HEAD^{tree})" = bf694519a98657797827bbc1949c17afa8844686
+          test "$(git -C source rev-parse HEAD)" = eeb0b879f9eb3cb356af0f04b089d24c6fef414e
+          test "$(git -C source rev-parse HEAD^{tree})" = fb0c0290897a2b063b99a9475af649fc8ea650b1
       - name: Install LLVM toolchain
         run: sudo apt-get update -qq && sudo apt-get install -y -qq llvm-18-dev clang-18 lld-18 libzstd-dev wabt cmake file
       - name: Build native compiler
@@ -26,7 +26,11 @@ jobs:
           cmake --build build --target oreslang-llvmc -j2
       - name: Execute new linked native guest and negative controls
         working-directory: source
-        run: python3 tests/delimited_procedural_dispatch.py build/oreslang-llvmc /usr/bin/clang-18
+        run: ctest --test-dir build --output-on-failure -R '^native_delimited_procedural_dispatch_runtime
+      - name: Execute existing native dispatch regressions
+        working-directory: source
+        run: ctest --test-dir build --output-on-failure -R '^native_(do_match_function_return|do_switch_function_return|do_switch_default_only|do_match_wildcard_only|value_match_arm_result|value_switch_arm_result)_runtime$' --no-tests=error
+ --no-tests=error -V
       - name: Execute existing native dispatch regressions
         working-directory: source
         run: ctest --test-dir build --output-on-failure -R '^native_(do_match_function_return|do_switch_function_return|do_switch_default_only|do_match_wildcard_only|value_match_arm_result|value_switch_arm_result)_runtime$' --no-tests=error
