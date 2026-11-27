@@ -1,8 +1,8 @@
-name: Atto native placement and lexical cleanup parity
+name: Atto approved Rust and Forge refreshed integration
 on:
   push:
-    branches: [ci/native-parity-expansion-20261127]
-    paths: [.github/workflows/native-parity-expansion.yml]
+    branches: [ci/approved-rust-forge-refresh-20261127]
+    paths: [.github/workflows/approved-rust-forge-refresh.yml]
 permissions:
   contents: read
 jobs:
@@ -11,27 +11,20 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - lane: 'net'
-            repo: 'atto-source.net'
-            pr: '357'
-            base: 'cdf519109127f86c643095d6802f7f914c8e03af'
-            baseTree: '573c732d335a3e37a3b9a7d336f246e8c52c0184'
-            head: '66d3b564330952e0424d820b1c08e1af0a1eff8e'
-            tree: '3006a4e40e64100e376a9dd650877a4ba343606f'
-          - lane: 'llvm'
-            repo: 'atto-source.llvm'
-            pr: '1054'
-            base: 'da05ebb20058af3a48abea8a51b97054e8f7ed79'
-            baseTree: '95ed35faaa391f57fb2e0b059a079a27609a3c1c'
-            head: '371fc5bb98a27585a45d7032a63feaf292fb5482'
-            tree: 'c963c7ce7019d6edecc40f8d6c427d29b8550e01'
+          - lane: 'rust'
+            repo: 'atto-source.rs'
+            pr: '723'
+            base: 'ad653316df5e4f369d00ed76c0195254ee9d3ff5'
+            baseTree: '20439ab935fa58e8beae3f71af533b7c7197da09'
+            head: '0106a2d8b05afd0b5a4ce87338d17df3acefa729'
+            tree: 'a00df83ef8ffddd4c66bd5847310e127a64e4716'
           - lane: 'forge'
             repo: 'atto-source.forge'
             pr: '327'
             base: 'e88796d4f384b70e22970d2834e8925dff4199f6'
             baseTree: 'b45d37826e03cc20198a61d659a7ed883c020c44'
-            head: 'da4f6f5ad75afb7050241d024a2fb444d95f66fe'
-            tree: 'bf6efbc085d46175efd876dc506c5eb26fcc1f13'
+            head: '49160f1fdb0dec11de33e085cf6950ad7551fbab'
+            tree: 'b9991fecfe69575d4243254c2d33668918c4bfac'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
