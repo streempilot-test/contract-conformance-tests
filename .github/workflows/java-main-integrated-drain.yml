@@ -1,0 +1,85 @@
+name: Current-main Java shutdown 280-process differential
+on:
+  pull_request:
+    branches: [main]
+permissions: {}
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - lane: baseline
+            sha: eb19e67787ab78d9c504307d17e60d1947fa3c92
+          - lane: linked-mailbox-drain
+            sha: 73da4532d34cb3cf2ae2cd50ebf12bc2b14d68af
+    env:
+      GIT_TERMINAL_PROMPT: '0'
+      GIT_CONFIG_NOSYSTEM: '1'
+      GIT_CONFIG_GLOBAL: /dev/null
+      JAVA_SHA: ${{ matrix.sha }}
+      RUST_SHA: 8d7e79219df53682eda0b3e85c738812483ac2a0
+    steps:
+      - name: Verify exact public source trees
+        run: |
+          set -euo pipefail
+          checkout() {
+            local repo="$1" sha="$2" dest="$3" tree
+            case "$repo:$sha" in
+              atto-source.java:eb19e67787ab78d9c504307d17e60d1947fa3c92) tree=572b806b34064c5190d8c17021eb85c72cdda618 ;;
+              atto-source.java:73da4532d34cb3cf2ae2cd50ebf12bc2b14d68af) tree=925d892e293ffd2b05a4fa7999582253c9c25508 ;;
+              atto-source.rs:8d7e79219df53682eda0b3e85c738812483ac2a0) tree=2e5fdc217e8f3e94bc3535378599f4944243d36c ;;
+              *) echo "unreviewed commit/tree pair" >&2; exit 1 ;;
+            esac
+            [[ "$tree" =~ ^[0-9a-f]{40}$ ]]
+            git init "$dest"
+            git -C "$dest" -c credential.helper= -c core.askPass= -c http.extraHeader= fetch --no-tags --depth=1 "https://github.com/atto-lang/$repo.git" "$sha"
+            git -C "$dest" checkout --detach FETCH_HEAD
+            test "$(git -C "$dest" rev-parse HEAD)" = "$sha"
+            test "$(git -C "$dest" rev-parse HEAD^{tree})" = "$tree"
+            git -C "$dest" fsck --no-dangling
+            test -z "$(git -C "$dest" status --porcelain)"
+            printf 'EXACT_SOURCE repo=%s sha=%s tree=%s\n' "$repo" "$sha" "$tree"
+          }
+          checkout atto-source.java "$JAVA_SHA" java-source
+          checkout atto-source.rs "$RUST_SHA" rust-source
+      - name: Compile Java and repeat actual root and actor guest runs
+        run: |
+          set -euo pipefail
+          export JAVA_HOME="${JAVA_HOME_25_X64:?JDK25 required}"
+          export PATH="$JAVA_HOME/bin:$PATH"
+          (cd java-source && mvn -B -ntp -DskipTests compile dependency:build-classpath -Dmdep.outputFile=target/reference-classpath.txt)
+          export JAVA_CP="$PWD/java-source/target/classes:$(cat java-source/target/reference-classpath.txt)"
+          printf '%s\n' 'pub fnc main(): int { stdio.println(42); return 0; }' > "$RUNNER_TEMP/root-only.atto"
+          node --input-type=module <<'JS'
+          import {spawnSync} from 'node:child_process';
+          import {readFileSync} from 'node:fs';
+          import {join} from 'node:path';
+          const invoke=file=>spawnSync(process.env.JAVA_HOME+'/bin/java',['--enable-native-access=ALL-UNNAMED','-cp',process.env.JAVA_CP,'dev.oreslang.launcher.OresMain',file],{encoding:'utf8',timeout:60000,maxBuffer:8*1024*1024});
+          const actors=['60-actor-echo','61-actor-state','62-actor-bool-mail','63-actor-own-method','65-actor-bare-end-form','67-actor-two-instances'];
+          const cases=[{name:'root-only',file:join(process.env.RUNNER_TEMP,'root-only.atto'),stdout:'42\n',exit:0,unordered:false,repeat:20}];
+          for(const name of actors){
+            const file=join('rust-source/tests/fixtures/pass',name+'.atto');
+            const source=readFileSync(file,'utf8');
+            const stdout=Array.from(source.matchAll(/^\/\/ expect-stdout: ?(.*)$/gm),m=>m[1].replaceAll('\\n','\n')).join('\n')+'\n';
+            const exit=Number(source.match(/^\/\/ expect-exit: (\d+)$/m)?.[1]);
+            if(!Number.isInteger(exit))throw Error('missing exact exit contract '+name);
+            cases.push({name,file,stdout,exit,unordered:source.includes('// stdout-order: unordered'),repeat:20});
+          }
+          let pass=0,fail=0;
+          for(const c of cases){
+            let good=0,bad=0;
+            for(let i=0;i<c.repeat;i++){
+              const r=invoke(c.file);
+              const sort=s=>s.split('\n').sort().join('\n');
+              const out=typeof r.stdout==='string'&&(c.unordered?sort(r.stdout)===sort(c.stdout):r.stdout===c.stdout);
+              const ok=!r.error&&!r.signal&&r.status===c.exit&&out&&typeof r.stderr==='string'&&!/context is currently executing|^oreslang: /mi.test(r.stderr);
+              if(ok){pass++;good++;}else{fail++;bad++;console.log(JSON.stringify({case:c.name,iteration:i,status:r.status,signal:r.signal,stdout:r.stdout,stderr:r.stderr?.slice(-1000),error:r.error?.message}));}
+            }
+            console.log('CASE_RESULT '+JSON.stringify({id:c.name,pass:good,fail:bad}));
+          }
+          console.log('ROOT_ACTOR_DIFFERENTIAL '+JSON.stringify({pass,fail,total:pass+fail}));
+          if(fail||pass!==140)process.exitCode=1;
+          JS

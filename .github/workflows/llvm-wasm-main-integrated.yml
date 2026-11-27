@@ -1,0 +1,46 @@
+name: Integrated LLVM callable and Wasm dual-denial qualification
+on:
+  pull_request:
+    branches: [main]
+permissions: {}
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      GIT_TERMINAL_PROMPT: '0'
+      GIT_CONFIG_NOSYSTEM: '1'
+      GIT_CONFIG_GLOBAL: /dev/null
+    steps:
+      - name: Exact pinned public source trees
+        run: |
+          set -euo pipefail
+          checkout() {
+            local repo="$1" sha="$2" tree="$3" dest="$4"
+            git init "$dest"
+            git -C "$dest" -c credential.helper= -c core.askPass= -c http.extraHeader= fetch --no-tags --depth=1 "https://github.com/atto-lang/$repo.git" "$sha"
+            git -C "$dest" checkout --detach FETCH_HEAD
+            test "$(git -C "$dest" rev-parse HEAD)" = "$sha"
+            test "$(git -C "$dest" rev-parse HEAD^{tree})" = "$tree"
+            git -C "$dest" fsck --no-dangling
+            test -z "$(git -C "$dest" status --porcelain)"
+            printf 'EXACT_SOURCE repo=%s sha=%s tree=%s\n' "$repo" "$sha" "$tree"
+          }
+          checkout atto-source.wasm 8dd40f786fffbbafb47da5e465e43a3387bc6062 a367de5718a0320cddaa10a11039f71806a7fb75 source
+          checkout atto-source.llvm fc42681ae006a6b368f41d95ec7e9b06bef2fd9c 120212358e689c03c5a8ef32401779b50a81cb0a llvm-source
+      - name: Build actual compiler and run repaired seven-suite corpus
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y llvm-dev clang lld ninja-build
+          cmake -S llvm-source -B llvm-build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
+          cmake --build llvm-build --target oreslang-llvmc --parallel 2
+          export ORESLANG_LLVM_SOURCE_SHA=fc42681ae006a6b368f41d95ec7e9b06bef2fd9c
+          export ORESLANG_LLVM_SOURCE_TREE=120212358e689c03c5a8ef32401779b50a81cb0a
+          export ORESLANG_LLVM_COMPILER="$PWD/llvm-build/oreslang-llvmc"
+          export ORESLANG_LLVM_COMPILER_SHA256="$(sha256sum "$ORESLANG_LLVM_COMPILER" | cut -d ' ' -f1)"
+          export ORESLANG_REQUIRE_REAL_COMPILER=1
+          bash llvm-source/scripts/test-defined-callable-native.sh "$ORESLANG_LLVM_COMPILER"
+          cd source
+          node --test tests/atto-semantic-negative-wasm32.test.mjs tests/canonical-no-percent-real-guest.test.mjs tests/native-scalar-zero-parity.test.mjs tests/numeric-source-parity.test.mjs tests/portable-scalar-parity-v1.test.mjs tests/portable-scalar-parity-v2.test.mjs tests/unary-plus-source-parity.test.mjs
+          echo SCOPE=REAL_COMPILER_WORKSPACE_CLEANUP_AND_SCOPED_GUEST_REGRESSION
