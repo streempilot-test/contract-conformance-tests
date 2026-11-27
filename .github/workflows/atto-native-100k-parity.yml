@@ -1,0 +1,56 @@
+name: Atto native 100k claim cancel parity
+on:
+  pull_request:
+    branches: [main]
+permissions: {}
+jobs:
+  native:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        backend: [llvm, forge]
+        include:
+          - backend: llvm
+            sha: 8b57ac2135496d40c89ed38b344363e787efd2a1
+            header: src/main/cpp/oreslang/runtime/NativeSelectContinuationFence.hpp
+            include: src/main/cpp
+            test: tests/native_select_continuation_multi_owner_test.cpp
+          - backend: forge
+            sha: 9b10f60fb2889cefe3f8691da972d5b74862d444
+            header: shared/oreslang/runtime/NativeSelectContinuationFence.hpp
+            include: shared
+            test: verification/native_select_continuation_multi_owner_test.cpp
+    steps:
+      - name: Verify public checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          git init source
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.${{ matrix.backend }}.git refs/heads/test/native-claim-cancel-100k-20261127
+          git -C source -c core.hooksPath=/dev/null checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = ${{ matrix.sha }}
+          test "$(git -C source write-tree)" = "$(git -C source rev-parse 'HEAD^{tree}')"
+          test "$(git -C source hash-object ${{ matrix.header }})" = c6a3410890e504a9767f08eb53a99f4bd105648c
+          test "$(git -C source hash-object ${{ matrix.test }})" = 5a3524647c624ed14416ddaa547fba29480df415
+          git -C source diff --exit-code HEAD
+          git -C source rev-parse HEAD 'HEAD^{tree}'
+      - name: Execute optimized and sanitized tests
+        shell: bash
+        working-directory: source
+        run: |
+          set -euo pipefail
+          for profile in optimized asan tsan; do
+            case "$profile" in
+              optimized) cc=g++; flags=(-O2);;
+              asan) cc=clang++; flags=(-O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer);;
+              tsan) cc=g++; flags=(-O1 -g -fsanitize=thread -fno-omit-frame-pointer -no-pie);;
+            esac
+            "$cc" "${flags[@]}" -std=c++20 -pthread -Wall -Wextra -Wpedantic -Werror -I${{ matrix.include }} ${{ matrix.test }} -o /tmp/fence-test
+            echo "PROFILE=$profile"
+            TSAN_OPTIONS=halt_on_error=1 ASAN_OPTIONS=halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1 timeout 180s /tmp/fence-test | tee "/tmp/$profile.log"
+            grep -E '^CLAIM_CANCEL_STRESS_PASS rounds=100000 claims=[0-9]+ cancellations=[0-9]+$' "/tmp/$profile.log"
+            grep -F 'PASS 640 native owner settlements' "/tmp/$profile.log"
+          done
