@@ -1,0 +1,49 @@
+name: Control arena linear memory and lifecycle reference parity
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/control-linear-replay-20261127.yml']
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - repo: atto-source.js
+            head: ca9b37974ae48b9129ffdb29a708f20e2f73e26f
+            script: verification/control-plane-arena-v1/probe.mjs
+            arg: array-buffer
+          - repo: atto-source.wasm
+            head: a2ab2f58da0a29f8c6a1df329a8dce0401e51080
+            script: verification/control-plane-arena-v1/probe.mjs
+            arg: wasm-linear
+          - repo: atto-common-source
+            head: ac20a2d61e4026bcc2a1fa6aadbc36c9ac034972
+            script: tools/contextual-allocation-events-v1.mjs
+            arg: ''
+    steps:
+      - name: Verify exact public source and execute
+        shell: bash
+        env:
+          REPO: ${{ matrix.repo }}
+          HEAD_SHA: ${{ matrix.head }}
+          SCRIPT: ${{ matrix.script }}
+          ARG: ${{ matrix.arg }}
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= fetch --no-tags --depth=1 "https://github.com/atto-lang/$REPO.git" "$HEAD_SHA"
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = "$HEAD_SHA"
+          git -C source rev-parse HEAD^{tree}
+          cd source
+          git hash-object "$SCRIPT"
+          if [[ "$REPO" != atto-common-source ]]; then git hash-object verification/control-plane-arena-v1/control-plane-arena32.mjs; fi
+          node --version
+          node "$SCRIPT" "$ARG"
+          git diff --exit-code
