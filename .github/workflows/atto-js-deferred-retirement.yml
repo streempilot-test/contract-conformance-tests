@@ -1,0 +1,40 @@
+name: Atto exact JS deferred quantum retirement
+on:
+  pull_request:
+    branches: [main]
+permissions: {}
+jobs:
+  js-quantum:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Verify exact public source
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          git init atto-source.js
+          git -C atto-source.js -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.js.git refs/heads/feat/js-worker-control-loop-v1-20261121
+          git -C atto-source.js -c core.hooksPath=/dev/null checkout --detach FETCH_HEAD
+          test "$(git -C atto-source.js rev-parse HEAD)" = 231a66b41c73e2e1409b983ae546391f9012a964
+          test "$(git -C atto-source.js write-tree)" = "$(git -C atto-source.js rev-parse 'HEAD^{tree}')"
+          test "$(git -C atto-source.js hash-object 'src/worker-control-loop.mjs')" = 8ad4144f6bc6542b566b9076f6b95b585726be4e
+          test "$(git -C atto-source.js hash-object 'tests/worker-control-loop.test.mjs')" = b1776ecfa0553c0c46976290e362dd46b51c6b18
+          test "$(git -C atto-source.js hash-object 'src/portable-task-host-v3.mjs')" = 09787263c10f14b0d99c661de4d74db429c6a625
+          test "$(git -C atto-source.js hash-object 'src/portable-task-host-v4.mjs')" = 7611af63c3a3091128506bb274ea974991dc357b
+          test "$(git -C atto-source.js hash-object 'src/portable-task-host-v5.mjs')" = dfb3de083443634045c1f2b90820e358b0e0b9db
+          test "$(git -C atto-source.js hash-object 'src/worker-completion-capability-v1.mjs')" = 98d52999d27601c24a22e6a4a09a41ea5bc9c1f0
+          git -C atto-source.js diff --exit-code HEAD
+          git -C atto-source.js rev-parse HEAD 'HEAD^{tree}'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Execute real tests
+        shell: bash
+        working-directory: atto-source.js
+        run: |
+          set -euo pipefail
+          node --version
+          node --test tests/worker-control-loop.test.mjs
+          npm run test:workers
+          node --test tests/actor-future-host-v1.test.mjs tests/task-future-host-v1.test.mjs tests/portable-task-host-v3.test.mjs tests/portable-task-host-v4.test.mjs tests/portable-task-host-v5.test.mjs tests/worker-completion-adversarial.test.mjs tests/worker-completion-capability-v1.test.mjs
