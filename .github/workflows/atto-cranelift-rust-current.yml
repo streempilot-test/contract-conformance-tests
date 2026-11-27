@@ -1,0 +1,58 @@
+name: Atto Rust and Cranelift current lifecycle verification
+on:
+  pull_request:
+    branches: [main]
+permissions: {}
+jobs:
+  cranelift:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Verify exact public source
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          git init atto-source.cranelift
+          git -C atto-source.cranelift -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.cranelift.git refs/heads/test/multi-owner-continuation-settlement-20261127
+          git -C atto-source.cranelift -c core.hooksPath=/dev/null checkout --detach FETCH_HEAD
+          test "$(git -C atto-source.cranelift rev-parse HEAD)" = 9272912b3e205aaab4785886797fc6f2354423ca
+          test "$(git -C atto-source.cranelift write-tree)" = "$(git -C atto-source.cranelift rev-parse 'HEAD^{tree}')"
+          test "$(git -C atto-source.cranelift hash-object src/select_continuation_fence.rs)" = 52f62ec077f23897e456c31f0e3f71a9a0ed8cf8
+          git -C atto-source.cranelift diff --exit-code HEAD
+          git -C atto-source.cranelift rev-parse HEAD 'HEAD^{tree}'
+      - name: Execute regressions
+        shell: bash
+        working-directory: atto-source.cranelift
+        run: |
+          set -euo pipefail
+          rustc --version
+          cargo --version
+          cargo test --locked --all-targets
+          cargo clippy --locked --all-targets -- -D warnings
+  rs:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Verify exact public source
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          git init atto-source.rs
+          git -C atto-source.rs -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.rs.git b38caad83d0bf16d13a300b39a07ee9bdf272aa7
+          git -C atto-source.rs -c core.hooksPath=/dev/null checkout --detach FETCH_HEAD
+          test "$(git -C atto-source.rs rev-parse HEAD)" = b38caad83d0bf16d13a300b39a07ee9bdf272aa7
+          test "$(git -C atto-source.rs write-tree)" = "$(git -C atto-source.rs rev-parse 'HEAD^{tree}')"
+          test "$(git -C atto-source.rs hash-object src/actor_stack_bound.rs)" = 22114c39a3fd4f626b210f2b12c659b700232ade
+          git -C atto-source.rs diff --exit-code HEAD
+          git -C atto-source.rs rev-parse HEAD 'HEAD^{tree}'
+      - name: Execute regressions
+        shell: bash
+        working-directory: atto-source.rs
+        run: |
+          set -euo pipefail
+          rustc --version
+          cargo --version
+          cargo test --locked --lib
+          cargo test --locked --all-targets
