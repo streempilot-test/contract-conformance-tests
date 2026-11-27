@@ -16,18 +16,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - lane: forge
-            repo: atto-source.forge
-            head: 9b10f60fb2889cefe3f8691da972d5b74862d444
-            tree: 32acb89518c41bc02962c746c041ad97c19558aa
-          - lane: llvm
-            repo: atto-source.llvm
-            head: 92f95723505daeefae50367fdda18281cb1c8f40
-            tree: 92832fadfef071b0b842613c4481cf28ea47da8d
           - lane: cranelift
             repo: atto-source.cranelift
-            head: ebc687d24158d303ae1715e9c069d6df0ed3f09b
-            tree: e019fcebb266301edf7b1a9657bb90e96b41e74e
+            head: 380a052472e679981376a15c0b1995b18922dbb0
+            tree: 5d0f464ec58c0dceec18693dc518cd9843aca141
     steps:
       - name: Fetch public exact tree without source credentials
         env:
