@@ -13,34 +13,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - lane: rust
-            repo: atto-source.rs
-            head: 6a9a01d143d814c41f3de6d389c497ca0ad7d3c3
-            tree: c367fbd65870c928077d59a8755b4c1a6f78a314
-          - lane: js
-            repo: atto-source.js
-            head: b7432b81cfc646615cf3ae0034703649b3d318df
-            tree: 5d9ce12250e0f53da31f2827c7a513c13ebbf63a
           - lane: formatter
             repo: atto-format
-            head: efd8740ba0fe68038296db940f03d5b9f088b003
-            tree: b9206da81990da7a19602e22e6481cea1bcd43c9
+            head: a2d793ec1790f649b28eaac832426f5490bc3ad5
+            tree: d016dee48cd5cd4ae73568f92e959b37dee6fc69
           - lane: clippy
             repo: atto-source.rs
-            head: 786791987e06652dbb737d3a05142151d022b3cb
-            tree: 36fd028263fe5cfabc4257cdf964d952f13d81bc
-          - lane: js-u64
-            repo: atto-source.js
-            head: a44f3ea6a397d6db99babd0aebdd018842b9f93a
-            tree: 680899ffe367b9bed6d8b530b144e654498f5938
-          - lane: spec
-            repo: atto-spec
-            head: aae2f21d934b743f7f24dac2933046d8711b4a03
-            tree: 7fb3cba28efb8e8069afb44ffe19537a07ebc0fe
-          - lane: java
-            repo: atto-source.java
-            head: 9d91363557e397ffa0afdfe75e55a2e94626bc9c
-            tree: ce680a2936550f3e53312fde876bef05e468e4e9
+            head: 717e3c806cff9c4593981af8dd22f8e2ae49969b
+            tree: d70fa8df0758c6031956b93879c05bf65d4c9111
     steps:
       - name: Fetch only public exact Git source with no credentials
         env:
