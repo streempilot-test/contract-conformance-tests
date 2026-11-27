@@ -1,0 +1,48 @@
+name: Current quantity and native placement qualification
+on:
+  push:
+    branches: [ci/atto-quantity-placement-c9ae554]
+permissions:
+  contents: read
+jobs:
+  guest:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - backend: js
+            head: ec51eb9554c1ade8836693f2ea1be270d34165c4
+            tree: c9ae55491a018ef2a0c8682b92906a17e14faca0
+          - backend: llvm
+            head: 0bf7be6a7c628537e461513c8515070ada80b2f9
+            tree: 6107e7a7678ad08581707e0310311cb718f96f39
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Verify public source
+        env:
+          BACKEND: ${{ matrix.backend }}
+          HEAD_SHA: ${{ matrix.head }}
+          TREE_SHA: ${{ matrix.tree }}
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          git init guest
+          git -C guest -c credential.helper= fetch --depth=1 "https://github.com/atto-lang/atto-source.$BACKEND.git" "$HEAD_SHA"
+          git -C guest checkout --detach FETCH_HEAD
+          test "$(git -C guest rev-parse HEAD)" = "$HEAD_SHA"
+          test "$(git -C guest rev-parse HEAD^{tree})" = "$TREE_SHA"
+          git -C guest fsck --full
+      - name: Execute compound unit and full JS regression
+        if: matrix.backend == 'js'
+        working-directory: guest
+        run: |
+          node --test tests/compound-dimensions.test.mjs
+          npm test
+      - name: Compile independent frontend and run linked native placement guests
+        if: matrix.backend == 'llvm'
+        working-directory: guest/frontend
+        run: |
+          cargo test --locked
+          cargo build --locked --release --bin attoc
+          ATTOC=target/release/attoc node tests/physical_placement_native_clang.mjs
