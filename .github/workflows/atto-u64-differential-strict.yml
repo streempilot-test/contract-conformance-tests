@@ -14,10 +14,10 @@ jobs:
         run: |
           git init -q conformance
           git -C conformance remote add origin https://github.com/atto-lang/atto-platform-conformance.git
-          git -C conformance fetch --no-tags --depth=1 origin e06ea5de8e68ff1f3f36e8c5c0bd3ed2ef80ea6e
+          git -C conformance fetch --no-tags --depth=1 origin d603b1c26b79ad6970a12c3808519467c87efcc8
           git -C conformance checkout --detach FETCH_HEAD
-          test "$(git -C conformance rev-parse HEAD)" = e06ea5de8e68ff1f3f36e8c5c0bd3ed2ef80ea6e
-          test "$(git -C conformance rev-parse 'HEAD^{tree}')" = 4a78809fff7208ea545612e187d029718a0f3752
+          test "$(git -C conformance rev-parse HEAD)" = d603b1c26b79ad6970a12c3808519467c87efcc8
+          test "$(git -C conformance rev-parse 'HEAD^{tree}')" = 6e70208e33b9caa66b1d4af3c604425324615769
           git init -q js
           git -C js remote add origin https://github.com/atto-lang/atto-source.js.git
           git -C js fetch --no-tags --depth=1 origin 980e61cabdcb3aa883de35085f944f8018b10cd0
@@ -57,4 +57,14 @@ jobs:
           ulimit -c 0
           javac -version
           clang++ --version
-          node --test tests/checked-u64-cross-candidates.test.mjs tests/fixed-width-integer-oracle.test.mjs
+          node --test tests/checked-u64-cross-candidates.test.mjs tests/fixed-width-integer-oracle.test.mjs tests/fixed-width-division-oracle.test.mjs tests/atto-xo-checked-u64-debit-v1.test.mjs
+      - name: Exact LLVM and Forge architecture matrices
+        working-directory: conformance
+        env:
+          ATTO_U64_TARGET_REQUIRED: '1'
+          ATTO_U64_FORGE_TARGET_REQUIRED: '1'
+          ATTO_U64_LLVM_SOURCE: ${{ github.workspace }}/llvm/tools/atto_checked_u64.cpp
+          ATTO_U64_FORGE_SOURCE: ${{ github.workspace }}/forge/tools/forge_checked_u64.cpp
+        run: |
+          ulimit -c 0
+          node --test tests/checked-u64-target-matrix.test.mjs tests/checked-u64-forge-target-matrix.test.mjs
