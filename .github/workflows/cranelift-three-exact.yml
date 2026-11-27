@@ -1,0 +1,49 @@
+name: Exact Cranelift native regression qualification
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/cranelift-three-exact.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - pr: 215
+            commit: b8b278966f78f0726f96f2f0f76246a3792dfddf
+            tree: b5bacf60a9b701900958091f9a46b8fb416318e8
+            tests: --lib canonical_stdout_scalar_admission_tests
+          - pr: 205
+            commit: 51e00288006adcc52c461177e3f3c3a9986faec8
+            tree: bd5bf9f76b388ebe05936cf9a4f0ff0177bcf122
+            tests: --test strict_fixed_array_native
+          - pr: 199
+            commit: 07a045bd62185b884ec8e234fd956e2b56c6e643
+            tree: c09692f7e75b498dadc3969268c2a4d1120b5ff0
+            tests: --test quantity_refinement_aot
+    steps:
+      - name: Authenticate exact public candidate
+        env:
+          SHA: ${{ matrix.commit }}
+          TREE: ${{ matrix.tree }}
+        run: |
+          set -euo pipefail
+          git init src
+          git -C src -c credential.helper= -c http.extraHeader= fetch --depth=1 --no-tags https://github.com/atto-lang/atto-source.cranelift.git "$SHA"
+          git -C src checkout --detach FETCH_HEAD
+          test "$(git -C src rev-parse HEAD)" = "$SHA"
+          test "$(git -C src write-tree)" = "$TREE"
+      - name: Actual target test suite
+        env:
+          TEST_ARGS: ${{ matrix.tests }}
+        run: |
+          set -euo pipefail
+          cd src
+          rustup toolchain install stable --profile minimal
+          cargo +stable test --locked $TEST_ARGS
+          git diff --exit-code
