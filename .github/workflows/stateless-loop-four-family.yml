@@ -1,0 +1,23 @@
+name: Four-family stateless loop registry
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/stateless-loop-four-family.yml'
+permissions:
+  contents: read
+jobs:
+  evidence:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Authenticate and test exact public registry
+        run: |
+          set -euo pipefail
+          git init src
+          git -C src -c credential.helper= -c http.extraHeader= fetch --depth=1 --no-tags https://github.com/atto-lang/atto-platform-conformance.git dc230034d1d749127817cf66783ebf6c042eb1c7
+          git -C src checkout --detach FETCH_HEAD
+          test "$(git -C src rev-parse HEAD)" = dc230034d1d749127817cf66783ebf6c042eb1c7
+          test "$(git -C src write-tree)" = 038632c25c073a4af6c1551b755168e2af076bdc
+          cd src
+          node --test tests/value-loop-recur-targets.test.mjs tests/value-loop-recur-observations-v1.test.mjs
+          git diff --exit-code
