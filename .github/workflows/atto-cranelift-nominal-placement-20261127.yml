@@ -1,0 +1,33 @@
+name: Cranelift nominal placement exact head
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/atto-cranelift-nominal-placement-20261127.yml'
+permissions:
+  contents: read
+jobs:
+  cranelift:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Fetch and verify exact public source
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.cranelift.git 6ecc99b8282e589e263b8a3d5880e8620fff6633
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = 6ecc99b8282e589e263b8a3d5880e8620fff6633
+          git -C source rev-parse HEAD^{tree}
+      - name: Actual source compiler regression, native guest and strict lint
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd source
+          rustc --version
+          cargo test --locked --test ownership_bang_admission fixed_nominal_array_placement_native_memory_and_rejections -- --nocapture
+          cargo test --locked --all-targets
+          cargo clippy --locked --all-targets -- -D warnings
+          git diff --exit-code

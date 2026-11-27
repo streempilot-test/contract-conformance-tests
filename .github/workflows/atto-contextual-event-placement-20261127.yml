@@ -1,0 +1,70 @@
+name: Atto contextual allocation lifecycle and placement
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/atto-contextual-event-placement-20261127.yml'
+permissions:
+  contents: read
+jobs:
+  reference:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - repo: atto-platform-conformance
+            head: 28687935fc7bc5a62ed842e674f1d07b39397ff8
+            file: tests/contextual-zero-gc-receipt-v1.mjs
+            blob: 08df40848a1bdf4504ada688f03e24727761d29d
+          - repo: atto-common-source
+            head: 20c246fe948c9e85f522c0ab2e93a0d47f2f4a35
+            file: tools/contextual-allocation-events-v1.mjs
+            blob: auto
+    steps:
+      - name: Bind public exact source and execute reference
+        shell: bash
+        env:
+          REPO: ${{ matrix.repo }}
+          HEAD_SHA: ${{ matrix.head }}
+          FILE: ${{ matrix.file }}
+          BLOB: ${{ matrix.blob }}
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= fetch --no-tags --depth=1 "https://github.com/atto-lang/$REPO.git" "$HEAD_SHA"
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = "$HEAD_SHA"
+          git -C source rev-parse HEAD^{tree}
+          actual=$(git hash-object "source/$FILE")
+          echo "tested blob=$actual"
+          if [[ "$BLOB" != auto ]]; then test "$actual" = "$BLOB"; fi
+          node --version
+          node "source/$FILE"
+          git -C source diff --exit-code
+  llvm-placement:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Fetch exact public source and check identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.llvm.git cedd9ef5a2c6668219ee75719466cc8d194a7963
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = cedd9ef5a2c6668219ee75719466cc8d194a7963
+          git -C source rev-parse HEAD^{tree}
+      - name: Build real LLVM frontend and execute native placement guests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd source/frontend
+          rustc --version
+          cargo test --locked --lib
+          cargo build --locked --release --bin attoc
+          ATTOC="$PWD/target/release/attoc" node tests/physical_placement_native_clang.mjs
+          git diff --exit-code
