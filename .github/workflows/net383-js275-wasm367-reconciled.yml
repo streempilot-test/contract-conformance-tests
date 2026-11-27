@@ -1,0 +1,78 @@
+name: Exact reconciled .NET JS and Wasm parity guests
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/net383-js275-wasm367-reconciled.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  net:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Authenticate exact public source
+        run: |
+          set -euo pipefail
+          git init src
+          git -C src -c credential.helper= -c http.extraHeader= fetch --depth=1 --no-tags https://github.com/atto-lang/atto-source.net.git 3ccf56abe1ce7c89c5c2a020984ea472068239c9
+          git -C src checkout --detach FETCH_HEAD
+          test "$(git -C src rev-parse HEAD)" = 3ccf56abe1ce7c89c5c2a020984ea472068239c9
+          test "$(git -C src write-tree)" = 94fbae03b51d056f7b2a6fdf71d5899a11f1aef5
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - name: Real compiled CIL and NativeAOT guests and existing CIL regressions
+        run: |
+          set -euo pipefail
+          cd src
+          bash scripts/test-cil-stateless-value-loop.sh
+          bash scripts/verify-direct-cil-integration.sh
+          bash scripts/test-cil-guest.sh
+          git diff --exit-code
+  js:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Exact public JS source and focused and full suite
+        run: |
+          set -euo pipefail
+          git init src
+          git -C src -c credential.helper= -c http.extraHeader= fetch --depth=1 --no-tags https://github.com/atto-lang/atto-source.js.git 49d87cb786497014c637ab55c42085248c82fb47
+          git -C src checkout --detach FETCH_HEAD
+          test "$(git -C src rev-parse HEAD)" = 49d87cb786497014c637ab55c42085248c82fb47
+          test "$(git -C src write-tree)" = 704a370f9ac5e4a17a6de7ba2231eb0af31aedcf
+          cd src
+          node --test tests/state-value-loop.test.mjs tests/stateless-value-loop.test.mjs
+          npm test
+          git diff --exit-code
+  wasm:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Authenticate public inputs and execute browser ABI and runtime regressions
+        run: |
+          set -euo pipefail
+          exact() {
+            git init "$1"
+            git -C "$1" -c credential.helper= -c http.extraHeader= fetch --depth=1 --no-tags "https://github.com/atto-lang/$2.git" "$3"
+            git -C "$1" checkout --detach FETCH_HEAD
+            test "$(git -C "$1" rev-parse HEAD)" = "$3"
+            test "$(git -C "$1" write-tree)" = "$4"
+          }
+          exact src atto-source.wasm 6f4ecc90265a74053e664c379ac58f3a33d5f197 5f0c7c5ab2e711f10a9ec8dc3c9403548a7fa29e
+          exact compiler atto-source.rs c2ff8e8369e398eee018db1a1c1f45f27bcda428 910e12faf393e3503f5913cfb289066ffa7214c4
+          exact fixtures atto-platform-conformance c196a575dc5249f57c013013d384ad0b8b02309c bac51327d3fc9c53afd0c0bead885f3e9c5240ae
+          export ATTO_BROWSER_SOURCE_ROOT="$PWD/compiler" ATTO_STRUCT_FIXTURE_ROOT="$PWD/fixtures"
+          rustup toolchain install 1.85.1 --profile minimal --target wasm32-unknown-unknown
+          cd compiler
+          cargo +1.85.1 rustc --locked --release --lib --target wasm32-unknown-unknown --crate-type cdylib -- -C link-arg=--max-memory=67108864
+          export ATTO_BROWSER_COMPILER="$(find "$PWD/target/wasm32-unknown-unknown/release" -maxdepth 1 -name '*.wasm' -type f | head -1)"
+          test -s "$ATTO_BROWSER_COMPILER"
+          export ATTO_BROWSER_COMPILER_SHA256="$(sha256sum "$ATTO_BROWSER_COMPILER" | cut -d' ' -f1)"
+          cd ../src
+          npm run test:attached-struct-browser
+          node --test tests/runtime-parking-effects.test.mjs tests/runtime-parking-effects-boundaries.test.mjs
+          git diff --exit-code
