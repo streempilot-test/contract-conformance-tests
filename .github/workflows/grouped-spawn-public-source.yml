@@ -12,8 +12,8 @@ jobs:
         include:
           - backend: java
             repo: atto-lang/atto-source.java
-            head: 665a10827e89fab2efd8a927c35b3dd0a058ad1c
-            tree: 07717d4c1c7f13d4d1081c9c5220e0a60db371f9
+            head: f4611981d4a813afe3396f9350d7cfe0b1c88cbe
+            tree: 4d3c1317d08065163064b9a48bcd93f47dd497e4
           - backend: rust
             repo: atto-lang/atto-source.rs
             head: eae46d5b767dd22bc4a82657dd7a7e3199722243
@@ -61,7 +61,7 @@ jobs:
           set -euo pipefail
           export JAVA_HOME="$JAVA_HOME_21_X64"
           export PATH="$JAVA_HOME/bin:$PATH"
-          mvn -B -ntp -Dtest=GroupedActorSpawnParserAdmissionTest,ParserTest,ActorStartupPayloadTest,ActorReservedHeapRuntimeTest,ActorStartupRuntimeTest,ActorReadinessLifecycleTest,SealedActorStateRegionTest,ActorJvmFirstCarrierAdmissionTest test
+          mvn -B -ntp -Dtest=GroupedActorSpawnParserAdmissionTest,GroupedSpawnPlanTest,ParserTest,ActorStartupPayloadTest,ActorReservedHeapRuntimeTest,ActorStartupRuntimeTest,ActorReadinessLifecycleTest,SealedActorStateRegionTest,ActorJvmFirstCarrierAdmissionTest test
       - name: Rust production parser admission
         if: matrix.backend == 'rust'
         working-directory: source
