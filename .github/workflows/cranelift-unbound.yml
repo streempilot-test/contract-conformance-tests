@@ -1,0 +1,26 @@
+name: Cranelift exact native Unicode diagnostic
+on:
+  pull_request:
+    branches: ['main']
+permissions: {}
+jobs:
+  compiler:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Verify public source tree
+        run: |
+          set -euo pipefail
+          git init source
+          git -C source -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.cranelift.git 221c7c6b04630d82ad66c9409456f5f867cd21da
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = 221c7c6b04630d82ad66c9409456f5f867cd21da
+          test "$(git -C source write-tree)" = 4606c164dbca19d8f72a17ba5fd8e572dc95d517
+      - name: Execute ordinary native object diagnostic and full compiler regression
+        working-directory: source
+        run: |
+          set -euo pipefail
+          cargo test --locked --test unbound_unicode_native -- --nocapture
+          cargo test --locked
+          git diff --exit-code
+          test "$(git write-tree)" = 4606c164dbca19d8f72a17ba5fd8e572dc95d517
