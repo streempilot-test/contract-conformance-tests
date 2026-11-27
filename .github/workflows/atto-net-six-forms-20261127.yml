@@ -1,0 +1,55 @@
+name: Atto .NET exact-source six-form NativeAOT qualification
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/atto-net-six-forms-20261127.yml']
+permissions:
+  contents: read
+jobs:
+  nativeaot:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Fetch public exact Git source without credentials
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          mkdir source
+          git -C source init -q
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.net.git 3c5c1f3a4b9df9af125ef2d3ece31a25c60e905d
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = 3c5c1f3a4b9df9af125ef2d3ece31a25c60e905d
+          test "$(git -C source rev-parse 'HEAD^{tree}')" = 4f30a344e92dd430a0e310718f61e0501ad4db4b
+          git -C source diff --quiet HEAD --
+          test -z "$(git -C source ls-files --others --exclude-standard)"
+          git -C source rev-parse HEAD 'HEAD^{tree}'
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - name: Install native link requirements
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq clang zlib1g-dev
+      - name: Compile strict actual typed CIL and execute NativeAOT guest
+        working-directory: source
+        run: |
+          set -euo pipefail
+          source="$PWD/tests/fixtures/conditional/six-forms-strict-nativeaot.atto"
+          generated="$PWD/verification/IfnotNativeAot/generated/OresGenerated.dll"
+          dotnet run -c Release --project verification/IfnotNativeAot/Emitter/Emitter.csproj -- "$source" "$generated" --strict-conditionals
+          test -s "$generated"
+          sha256sum "$generated"
+          dotnet publish verification/IfnotNativeAot/Host/Host.csproj -c Release -r linux-x64 -p:PublishAot=true -o "$RUNNER_TEMP/atto-six"
+          test -x "$RUNNER_TEMP/atto-six/Host"
+          sha256sum "$RUNNER_TEMP/atto-six/Host"
+          status=0
+          timeout --signal=TERM --kill-after=1s 5s "$RUNNER_TEMP/atto-six/Host" || status=$?
+          test "$status" = 42
+          echo "ATTO_STRICT_SIX_NATIVEAOT_PASS=42"
+          for body in 'if true then return 42; fi' 'if true { return 42; } fi' 'return if 1 then 42 else 0 fi;' 'return true ? {} : 42;'; do
+            printf 'pub fnc main():int { %s }\n' "$body" > "$RUNNER_TEMP/reject.atto"
+            rm -f "$RUNNER_TEMP/denied.dll"
+            if dotnet run --no-build -c Release --project verification/IfnotNativeAot/Emitter/Emitter.csproj -- "$RUNNER_TEMP/reject.atto" "$RUNNER_TEMP/denied.dll" --strict-conditionals; then exit 1; fi
+            test ! -e "$RUNNER_TEMP/denied.dll"
+          done
+          echo "ATTO_STRICT_SIX_NO_ARTIFACT_REJECTS=4"
