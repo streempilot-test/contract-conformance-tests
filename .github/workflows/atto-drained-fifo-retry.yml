@@ -1,0 +1,66 @@
+name: Atto drained FIFO compiled guest and Cranelift retry
+on:
+  pull_request:
+    branches: [main]
+permissions: {}
+jobs:
+  drained-fifo:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Verify exact public benchmark and compiler source
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          for spec in atto-benchmarks:858fe4a86cd581b4684fffe22095181f56048c57 atto-source.llvm:511829067db67547d412e5b4d34d16d6128b1e82; do
+            repo=${spec%%:*}
+            sha=${spec#*:}
+            git init "$repo"
+            git -C "$repo" -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 "https://github.com/atto-lang/$repo.git" "$sha"
+            git -C "$repo" -c core.hooksPath=/dev/null checkout --detach FETCH_HEAD
+            test "$(git -C "$repo" rev-parse HEAD)" = "$sha"
+            test "$(git -C "$repo" write-tree)" = "$(git -C "$repo" rev-parse 'HEAD^{tree}')"
+            test -z "$(git -C "$repo" status --porcelain --untracked-files=all)"
+            git -C "$repo" rev-parse HEAD 'HEAD^{tree}'
+          done
+      - name: Execute benchmark receipt controls
+        run: |
+          set -euo pipefail
+          python3 atto-benchmarks/actor-messaging/validate.py --self-test
+          python3 atto-benchmarks/actor-messaging/llvm_drained_smoke.py --self-test
+      - name: Build compiler and execute actual guest
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v llvm-config-18 || ! command -v clang-18 || ! test -f "$(llvm-config-18 --cmakedir)/LLVMConfig.cmake"; then
+            sudo apt-get update
+            sudo apt-get install -y llvm-18-dev clang-18 libclang-rt-18-dev
+          fi
+          cmake -S atto-source.llvm -B /tmp/atto-llvm-build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DLLVM_DIR="$(llvm-config-18 --cmakedir)"
+          cmake --build /tmp/atto-llvm-build --target oreslang-llvmc -j2
+          for mode in normal sanitize; do
+            args=()
+            if test "$mode" = sanitize; then args+=(--sanitize); fi
+            ASAN_OPTIONS=detect_leaks=1 UBSAN_OPTIONS=halt_on_error=1 python3 atto-benchmarks/actor-messaging/llvm_drained_smoke.py --compiler /tmp/atto-llvm-build/oreslang-llvmc --clang "$(command -v clang-18)" --root atto-source.llvm "${args[@]}"
+          done
+  cranelift:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Verify exact public Cranelift source and execute graph tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          git init source
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.cranelift.git e0a03b965d09bdc02383ac8f751030629e3277de
+          git -C source -c core.hooksPath=/dev/null checkout --detach FETCH_HEAD
+          cd source
+          test "$(git rev-parse HEAD)" = e0a03b965d09bdc02383ac8f751030629e3277de
+          test "$(git write-tree)" = "$(git rev-parse 'HEAD^{tree}')"
+          test "$(git hash-object tests/flat_machine_table_v1.rs)" = 4ad749570790d77601393497a855744e2cd6f1f6
+          test -z "$(git status --porcelain --untracked-files=all)"
+          git rev-parse HEAD 'HEAD^{tree}'
+          rustc --edition=2024 --test tests/flat_machine_table_v1.rs -o /tmp/flat-machine-table
+          /tmp/flat-machine-table
