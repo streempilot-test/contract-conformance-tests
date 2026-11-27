@@ -1,0 +1,31 @@
+name: Atto NET nominal Record 403 exact guest
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/atto-net-nominal-record-403.yml'
+permissions:
+  contents: read
+jobs:
+  net:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Fetch public exact compiler and verify blobs
+        run: |
+          set -eu
+          git init guest-source
+          cd guest-source
+          git -c credential.helper= fetch --depth=1 https://github.com/atto-lang/atto-source.net.git 11d2cbc6d0feb6b1a761e10a13b8d5fa53c4b072
+          git checkout --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = 11d2cbc6d0feb6b1a761e10a13b8d5fa53c4b072
+          git rev-parse HEAD^{tree}
+          test "$(git hash-object compiler/Atto.Cil.Compiler/NominalRecordSource.cs)" = 96017c83b8fcfcc14a200744778de4dabf860ce2
+          test "$(git hash-object compiler/Atto.Cil.Compiler/Program.cs)" = 2cccf33625cb45990e6d16ea31f43d67f7c2e5b9
+          test "$(git hash-object tests/fixtures/collection-subtypes-v1-candidate.json)" = 1cc0ae23fe56db7c3891d30881d28efa66619c21
+          test "$(git hash-object scripts/test-nominal-record-cil.sh)" = feb9649c206df2728f9fc18c9e2104ac9dab2370
+      - name: Execute actual nominal Record guests
+        working-directory: guest-source
+        run: bash scripts/test-nominal-record-cil.sh
+      - name: Full CoreCLR regression
+        working-directory: guest-source
+        run: dotnet run --project verification/Ores.Net.Tests/Ores.Net.Tests.csproj --configuration Release
