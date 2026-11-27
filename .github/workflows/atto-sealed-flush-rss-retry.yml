@@ -1,0 +1,81 @@
+name: Atto exact sealed flush and RSS retry
+on:
+  pull_request:
+    branches: [main]
+permissions: {}
+jobs:
+  llvm-rss:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Verify exact public source
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          git init "atto-source.llvm"
+          git -C "atto-source.llvm" -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.llvm.git 511829067db67547d412e5b4b34d16d6128b1e82
+          git -C "atto-source.llvm" -c core.hooksPath=/dev/null checkout --detach FETCH_HEAD
+          test "$(git -C "atto-source.llvm" rev-parse HEAD)" = 511829067db67547d412e5b4b34d16d6128b1e82
+          test "$(git -C "atto-source.llvm" write-tree)" = "$(git -C "atto-source.llvm" rev-parse 'HEAD^{tree}')"
+          test "$(git -C "atto-source.llvm" hash-object "tests/source_actor_one_for_one_restart_test.c")" = 17b222c6de583ff7d337c226a79d52ffeb527456
+          test "$(git -C "atto-source.llvm" hash-object src/main/cpp/oreslang/runtime/SourceActorBootstrap.c)" = a29d6cbe526ccf51992e3699e1081e45e33da395
+          git -C "atto-source.llvm" diff --exit-code HEAD
+          git -C "atto-source.llvm" rev-parse HEAD 'HEAD^{tree}'
+      - name: Execute bounded profile
+        shell: bash
+        working-directory: atto-source.llvm
+        run: |
+          set -euo pipefail
+          gcc -O2 -std=c11 -pthread -Wall -Wextra -Wpedantic -Werror -UNDEBUG -DORESLANG_SOURCE_ACTOR_TESTING -Isrc/main/cpp tests/source_actor_one_for_one_restart_test.c src/main/cpp/oreslang/runtime/{ActorOwnedI64Heap,NativeActorScheduler,NativeOresVM,NativeActorFuture,SourceActorBootstrap,NativeActorLogicalFramesV1,NativeExecutionContextStore,NativeContinuationStore,NativeAwaitTraceBridge,NativeLogicalTrace}.c -o /tmp/atto-restart
+          timeout 30s /tmp/atto-restart --sealed-flush
+          for mode in --reuse --failed-reuse --failed-stop-reuse; do
+            timeout 90s /tmp/atto-restart "$mode" 2>&1 | tail -8
+          done
+          python3 - <<'PY'
+          import collections, pathlib, subprocess, threading, time, statistics
+          for mode, receipt in [
+              ("--reuse-million", "SOURCE_ACTOR_LEAF_REUSE_PASS cycles=1000000 sibling=42"),
+              ("--failed-reuse-million", "SOURCE_ACTOR_FAILED_LEAF_REUSE_PASS cycles=1000000 sibling=42")]:
+              tail = collections.deque(maxlen=8)
+              start = time.monotonic()
+              proc = subprocess.Popen(["/tmp/atto-restart", mode], stdout=subprocess.PIPE,
+                                      stderr=subprocess.STDOUT, text=True)
+              def drain():
+                  for line in proc.stdout:
+                      tail.append(line.rstrip())
+              reader = threading.Thread(target=drain)
+              reader.start()
+              samples = []
+              try:
+                  while proc.poll() is None:
+                      elapsed = time.monotonic() - start
+                      if elapsed > 600:
+                          raise TimeoutError(mode)
+                      try:
+                          status = pathlib.Path(f"/proc/{proc.pid}/status").read_text()
+                          rss = next(int(line.split()[1]) for line in status.splitlines()
+                                     if line.startswith("VmRSS:"))
+                          samples.append((elapsed, rss))
+                      except (FileNotFoundError, ProcessLookupError, StopIteration):
+                          pass
+                      time.sleep(0.25)
+              finally:
+                  if proc.poll() is None:
+                      proc.kill()
+                  proc.wait()
+                  reader.join()
+              for line in tail:
+                  print(line, flush=True)
+              assert proc.returncode == 0 and any(receipt in line for line in tail), mode
+              assert len(samples) >= 40, ("insufficient samples", mode, len(samples))
+              warmed = [rss for t, rss in samples if t >= 5]
+              assert len(warmed) >= 20, mode
+              window = max(5, len(warmed)//10)
+              early = statistics.median(warmed[:window])
+              late = statistics.median(warmed[-window:])
+              peak = max(rss for _, rss in samples)
+              print(f"RSS_PROFILE mode={mode} samples={len(samples)} early_median_kib={early} late_median_kib={late} peak_sample_kib={peak} delta_kib={late-early}", flush=True)
+              # Explicit exploratory guard, not a production memory limit.
+              assert late - early <= 8192 and peak <= 65536, "RSS exploratory budget exceeded"
+          PY
