@@ -1,0 +1,27 @@
+name: Dotnet FIFO integrated head identity
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/net-control-fifo-head-20261127.yml']
+permissions:
+  contents: read
+jobs:
+  net:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Bind new exact public integrated head to previously tested tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.net.git 57db8b170142a413e460649c896c7242134039d7
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = 57db8b170142a413e460649c896c7242134039d7
+          git -C source rev-parse HEAD^{tree}
+          test "$(git -C source rev-parse HEAD^{tree})" = 4564ad0a587cb38b3542bed6edfcae47fcc20eb7
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - run: bash source/verification/Ores.Net.ControlPlaneArenaProbe/run-host-probe.sh
