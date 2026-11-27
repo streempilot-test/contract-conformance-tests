@@ -1,0 +1,59 @@
+name: Atto exact Rust and NET unsigned qualification
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/atto-rs-net-u64-exact.yml']
+permissions:
+  contents: read
+jobs:
+  rust-native:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Verify public source commit and tree
+        run: |
+          git init -q source
+          git -C source remote add origin https://github.com/atto-lang/atto-source.rs.git
+          git -C source fetch --no-tags --depth=1 origin ce120eb991c773550fb32cc567ddfd9e993fe2ae
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = ce120eb991c773550fb32cc567ddfd9e993fe2ae
+          test "$(git -C source rev-parse 'HEAD^{tree}')" = b1927024b2fa2b8f767323af7f94523dc3a2adbd
+          test "$(git -C source hash-object contracts/atto-xo-checked-u64-debit-v1/cases.tsv)" = 2d41ae576d049ed3a8898c3deacc8d30c705dce8
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec
+      - name: Actual unsigned native guest execution
+        working-directory: source/native
+        run: ulimit -c 0; cargo test --locked --test checked_u64_native -- --nocapture
+      - name: Full native regression
+        if: always()
+        working-directory: source/native
+        run: ulimit -c 0; cargo test --locked --all-targets --no-fail-fast
+      - name: Format and strict lint
+        if: always()
+        working-directory: source/native
+        run: cargo fmt --all -- --check
+      - name: Strict Clippy independent of format result
+        if: always()
+        working-directory: source/native
+        run: cargo clippy --locked --all-targets -- -D warnings
+  dotnet:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Verify public source commit and tree
+        run: |
+          git init -q source
+          git -C source remote add origin https://github.com/atto-lang/atto-source.net.git
+          git -C source fetch --no-tags --depth=1 origin a0fcd7ef651b791424e410250154753eb788fa06
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = a0fcd7ef651b791424e410250154753eb788fa06
+          test "$(git -C source rev-parse 'HEAD^{tree}')" = fa0103a1b4a60e6dcd1cfd040606b21402b80dbd
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: '10.0.x'
+      - name: Focused verified IR and CIL metadata tests (not native guest)
+        working-directory: source
+        run: dotnet run --project verification/Ores.Net.Tests/Ores.Net.Tests.csproj -c Release -- --unsigned-ir
+      - name: Full managed regression
+        if: always()
+        working-directory: source
+        run: dotnet run --project verification/Ores.Net.Tests/Ores.Net.Tests.csproj -c Release
