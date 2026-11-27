@@ -1,0 +1,31 @@
+name: Atto Cranelift Record 235 exact JIT
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/atto-cranelift-record-235.yml'
+permissions:
+  contents: read
+jobs:
+  clif:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Pin public compiler and verify changed blobs
+        run: |
+          set -eu
+          git init guest-source
+          cd guest-source
+          git -c credential.helper= fetch --depth=1 https://github.com/atto-lang/atto-source.cranelift.git 7eff92040d5caf68368261d61c03e4cab815c957
+          git checkout --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = 7eff92040d5caf68368261d61c03e4cab815c957
+          git rev-parse HEAD^{tree}
+          test "$(git hash-object src/frontend.rs)" = b1feb2797dd68bf944b597e063268323167727a6
+          test "$(git hash-object tests/named_aggregate_guest.rs)" = eaf26d49bd02d6baa0c07c2c422aa73e40cc48f4
+      - name: Compile and run actual JIT guests
+        working-directory: guest-source
+        run: |
+          rustc --version
+          cargo test --locked --test named_aggregate_guest -- --nocapture
+      - name: Full Rust regression
+        working-directory: guest-source
+        run: cargo test --locked
