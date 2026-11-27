@@ -1,7 +1,7 @@
 name: Public Atto compiler recovery - exact trees
 on:
   push:
-    branches: ['ci/atto-public-parity-recovery-20261126']
+    branches: ['ci/atto-exact-browser-native-recovery-20261126']
 permissions: {}
 jobs:
   capacity:
@@ -26,19 +26,19 @@ jobs:
             tree: ed8674b15a24541f7031feda4626f1f1d2613732
             os: ubuntu-24.04
             mode: rust
-          - repo: atto-source.cranelift
-            head: 2437ce5d42257c61ba46229e14527e372b27b871
-            tree: d8fa32ba6c15bf1ffb402548afca50d6a17c6767
+          - repo: atto-source.rs
+            head: 4c82dbfd1dd9cc97c2bee08c890a17c720144ae7
+            tree: 530ebab70b34a2e81775d70633cf6024ad8c5425
             os: ubuntu-24.04
-            mode: cranelift
+            mode: rust-current
           - repo: atto-source.llvm
-            head: 5842ae0e38713cc0105787b65bbf9768de52b558
-            tree: 3beb670f9bb54d2779f954dd43731acf5129da2a
+            head: 48c635a7de89e2a97ffeb2ee506a430e606a5e84
+            tree: bc4205a0a5866c4a1b8b4a15c9c806d875874765
             os: macos-15
             mode: llvm19
           - repo: atto-source.llvm
-            head: 5842ae0e38713cc0105787b65bbf9768de52b558
-            tree: 3beb670f9bb54d2779f954dd43731acf5129da2a
+            head: 48c635a7de89e2a97ffeb2ee506a430e606a5e84
+            tree: bc4205a0a5866c4a1b8b4a15c9c806d875874765
             os: macos-15
             mode: llvm23
     runs-on: ${{ matrix.os }}
@@ -72,11 +72,20 @@ jobs:
         run: |
           set -euo pipefail
           case "$MODE" in
-            rust)
+            rust|rust-current)
+              rustup toolchain install 1.85.1 --profile minimal --target wasm32-unknown-unknown
+              rustup default 1.85.1
+              unset RUST_MIN_STACK
               cargo test --locked --test fixtures
               cargo test --locked --no-fail-fast
               cargo build --locked --release --bin attoc
+              cargo rustc --locked --release --lib --target wasm32-unknown-unknown --crate-type cdylib -- -C link-arg=--max-memory=67108864
+              sha256sum target/wasm32-unknown-unknown/release/atto_compiler.wasm
+              export ATTOC=target/release/attoc
               node tests/conformance.mjs
+              node tests/constant_import_guest.mjs
+              export CHROME_BIN="$(command -v google-chrome || command -v chromium)"
+              node tests/browser-e2e.mjs
               ;;
             cranelift)
               cargo test --locked --no-fail-fast
