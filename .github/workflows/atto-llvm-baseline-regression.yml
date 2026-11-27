@@ -1,0 +1,33 @@
+name: Atto LLVM baseline regression control
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/atto-llvm-baseline-regression.yml']
+permissions:
+  contents: read
+jobs:
+  repaired-main-control:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Verify main and one-line build repair overlay
+        run: |
+          git init -q source
+          git -C source remote add origin https://github.com/atto-lang/atto-source.llvm.git
+          git -C source fetch --no-tags --depth=1 origin 47264e7649ce44572bceedb7f08e70860ef8010b c0b56b01eae6da0b7552aaf568a9812e14e6a7f8
+          git -C source checkout --detach 47264e7649ce44572bceedb7f08e70860ef8010b
+          test "$(git -C source rev-parse HEAD)" = 47264e7649ce44572bceedb7f08e70860ef8010b
+          test "$(git -C source rev-parse 'HEAD^{tree}')" = 2d2bdb718fa3b9823a69643ddb11f5f912a93031
+          test "$(git -C source hash-object CMakeLists.txt)" = 8a137ff760c3be273418e4d7d74fb9b08ce46a5a
+          git -C source show c0b56b01eae6da0b7552aaf568a9812e14e6a7f8:CMakeLists.txt > source/CMakeLists.txt
+          test "$(git -C source hash-object CMakeLists.txt)" = d449a6d2dc39c3df575bfc4e8a63b5a0a057c737
+          test "$(git -C source diff --name-only)" = CMakeLists.txt
+          git -C source diff --numstat
+          git -C source diff -- CMakeLists.txt
+      - name: Build and execute matching full native regression
+        working-directory: source
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y llvm-18-dev clang-18 lld-18
+          CC=clang-18 CXX=clang++-18 cmake -S . -B "$RUNNER_TEMP/llvm-build" -DLLVM_DIR="$(llvm-config-18 --cmakedir)" -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+          cmake --build "$RUNNER_TEMP/llvm-build" --parallel 2
+          ctest --test-dir "$RUNNER_TEMP/llvm-build" --output-on-failure
