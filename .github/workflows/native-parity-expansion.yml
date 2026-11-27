@@ -1,8 +1,8 @@
-name: Atto refreshed four-backend integration gate
+name: Atto native placement and lexical cleanup parity
 on:
   push:
-    branches: [ci/refresh-reviewed-compiler-wave-20261127]
-    paths: [.github/workflows/refresh-reviewed-wave.yml]
+    branches: [ci/native-parity-expansion-20261127]
+    paths: [.github/workflows/native-parity-expansion.yml]
 permissions:
   contents: read
 jobs:
@@ -11,34 +11,27 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - lane: 'rust'
-            repo: 'atto-source.rs'
-            pr: '723'
-            base: 'fa1308ca2df6eaf8926f5eea57591e269076c48e'
-            baseTree: 'd6747480a0b5c46217535613326e2ae18d821090'
-            head: '0106a2d8b05afd0b5a4ce87338d17df3acefa729'
-            tree: 'a00df83ef8ffddd4c66bd5847310e127a64e4716'
-          - lane: 'java'
-            repo: 'atto-source.java'
-            pr: '2027'
-            base: 'c1d3c08594ce9b709d365eb9852fc6c1b0da1893'
-            baseTree: 'bcf7bbbbf489670118fe8d996ba66246e711da3f'
-            head: '95a927323243701386ccd3eab869912db2a1b255'
-            tree: '4954b199288330508b408ed96a99f938e1ed1abf'
-          - lane: 'js'
-            repo: 'atto-source.js'
-            pr: '249'
-            base: '452a2f8b2cf639c3a96d6cb7d3f50037665cc3d7'
-            baseTree: 'e1daf64356d798138d956a5366ae4700131ca343'
-            head: '431880c24aca9926b07441d694b55d7c786f528d'
-            tree: '3cbd3aeacae7fc0dc296f52239078d6aeacc0105'
           - lane: 'net'
             repo: 'atto-source.net'
-            pr: '359'
+            pr: '357'
             base: 'cdf519109127f86c643095d6802f7f914c8e03af'
             baseTree: '573c732d335a3e37a3b9a7d336f246e8c52c0184'
-            head: 'd3ccd5928c2572bd56307792c78e16a1c14bfca8'
-            tree: '5ee27d77e2b6e6e7b7e128240b6198fdf6d0e15a'
+            head: '66d3b564330952e0424d820b1c08e1af0a1eff8e'
+            tree: '3006a4e40e64100e376a9dd650877a4ba343606f'
+          - lane: 'llvm'
+            repo: 'atto-source.llvm'
+            pr: '1054'
+            base: 'da05ebb20058af3a48abea8a51b97054e8f7ed79'
+            baseTree: '95ed35faaa391f57fb2e0b059a079a27609a3c1c'
+            head: '371fc5bb98a27585a45d7032a63feaf292fb5482'
+            tree: 'c963c7ce7019d6edecc40f8d6c427d29b8550e01'
+          - lane: 'forge'
+            repo: 'atto-source.forge'
+            pr: '327'
+            base: 'e88796d4f384b70e22970d2834e8925dff4199f6'
+            baseTree: 'b45d37826e03cc20198a61d659a7ed883c020c44'
+            head: 'da4f6f5ad75afb7050241d024a2fb444d95f66fe'
+            tree: 'bf6efbc085d46175efd876dc506c5eb26fcc1f13'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
@@ -55,7 +48,7 @@ jobs:
         run: |
           set -euo pipefail
           export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
-          [[ "$REPO" =~ ^atto-source\.(rs|js|net|java|llvm)$ ]]
+          [[ "$REPO" =~ ^atto-source\.(rs|js|net|java|llvm|forge)$ ]]
           git init -q source
           cd source
           git -c credential.helper= -c http.extraHeader= fetch --no-tags "https://github.com/atto-lang/$REPO.git" "$BASE" "$HEAD_SHA"
@@ -131,29 +124,25 @@ jobs:
           test -s "$report"
           grep -Eq '<testsuite[^>]*tests="[1-9][0-9]*"' "$report"
           if grep -Eq '<testsuite[^>]*(errors|failures|skipped)="[1-9][0-9]*"' "$report"; then exit 1; fi
-      - name: LLVM actual native ELF and Wasm short-circuit parity
+      - name: LLVM actual physical placement IR and native guests
         if: matrix.lane == 'llvm'
         working-directory: source
         run: |
           set -euo pipefail
-          cargo build --locked --offline --release --bin atto-llvm
           cargo build --manifest-path frontend/Cargo.toml --locked --offline --release --bin attoc
-          bash ci/test_safe_signed_division_native.sh native
-          bash ci/test_safe_signed_division_native.sh wasm
-          git init -q "$RUNNER_TEMP/shared"
-          git -C "$RUNNER_TEMP/shared" -c credential.helper= fetch --depth=1 https://github.com/atto-lang/atto-platform-conformance.git 9ade5d5d75e2fbe379cd470617d09d7e9c5509f3
-          git -C "$RUNNER_TEMP/shared" checkout --detach FETCH_HEAD
-          test "$(git -C "$RUNNER_TEMP/shared" rev-parse 'HEAD^{tree}')" = a23aaeb38dea69454f48fc82f21917d47543dcb9
-          fixture="$RUNNER_TEMP/shared/fixtures/guard-condition-list-v1/keyword-short-circuit.atto"
-          test "$(git hash-object "$fixture")" = f3442ff5286983278cbecc01255d0184869580cf
-          target/release/atto-llvm "$fixture" -o "$RUNNER_TEMP/short.elf"
-          readelf -h "$RUNNER_TEMP/short.elf" | grep -q ELF64
-          status=0
-          "$RUNNER_TEMP/short.elf" || status=$?
-          test "$status" = 42
-          frontend/target/release/attoc "$fixture" -o "$RUNNER_TEMP/short.wasm"
-          node --input-type=module -e 'import assert from "node:assert/strict";import {readFileSync} from "node:fs"; const {instance}=await WebAssembly.instantiate(readFileSync(process.argv[1]),{});assert.equal(instance.exports.main(),42n);assert.equal(instance.exports.panic_code.value,0);' "$RUNNER_TEMP/short.wasm"
-          bash ci/test_native_aot.sh
+          ATTOC="$PWD/frontend/target/release/attoc" node frontend/tests/physical_placement_native_clang.mjs
+          cargo test --manifest-path frontend/Cargo.toml --locked --offline
+      - name: Forge actual native pointer guests and lifecycle replay
+        if: matrix.lane == 'forge'
+        working-directory: source
+        run: |
+          set -euo pipefail
+          for lane in gcc clang; do
+            if [ "$lane" = gcc ]; then export CC=gcc CXX=g++; san=OFF; else export CC=clang CXX=clang++; san=ON; fi
+            cmake -S . -B "build-$lane" -DCMAKE_BUILD_TYPE=Release -DATTO_FORGE_SANITIZERS="$san"
+            cmake --build "build-$lane" --target forge_scalar pointer_local_typed_test reusable_slot_verifier_test -j2
+            ctest --test-dir "build-$lane" -R '^(pointer_local_typed_test|reusable_slot_verifier_test|pointer_local_native_guests)$' --output-on-failure -V --no-tests=error
+          done
       - name: Recheck integration tree and tracked files
         if: success()
         working-directory: source
