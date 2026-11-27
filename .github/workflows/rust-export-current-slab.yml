@@ -1,0 +1,53 @@
+name: Rust export current slab integration qualification
+on:
+  push:
+    branches: [ci/rust-export-current-slab-20261127]
+    paths: [.github/workflows/rust-export-current-slab.yml]
+permissions: {}
+jobs:
+  rust:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        lane: [export, conditionals]
+    env:
+      LANE: ${{ matrix.lane }}
+      RUST_MIN_STACK: '16777216'
+    steps:
+      - name: Verify all exact source trees and construct integration
+        run: |
+          set -euo pipefail
+          git init -q source
+          cd source
+          git -c credential.helper= -c http.extraHeader= fetch --no-tags https://github.com/atto-lang/atto-source.rs.git bcefd05df4baad391d685d44cc1a43b031d4c2a7 7c0e753f156cb7292c4137037a825e1f46a22113 73a533b76768850ee21fe7c40fa44d43170099d2 e1b511289a4e552a2db2eda5459d397dac0fb24c
+          test "$(git rev-parse 'bcefd05df4baad391d685d44cc1a43b031d4c2a7^{tree}')" = 907b9a7947a0182a9f1a9ce5dc23b178ca627e38
+          test "$(git rev-parse '7c0e753f156cb7292c4137037a825e1f46a22113^{tree}')" = 9ecd4c87571ad9805dfcc32feb5c18c5dcfb7b52
+          test "$(git rev-parse '73a533b76768850ee21fe7c40fa44d43170099d2^{tree}')" = 18d8454897d3746179fdd4d139404f7d70775314
+          test "$(git rev-parse 'e1b511289a4e552a2db2eda5459d397dac0fb24c^{tree}')" = 091925dcc1c4fb557f9a1a54886d50303285a255
+          git config user.name CI
+          git config user.email ci@example.invalid
+          git checkout --detach bcefd05df4baad391d685d44cc1a43b031d4c2a7
+          if [ "$LANE" = conditionals ]; then
+            git merge --no-edit --no-ff e1b511289a4e552a2db2eda5459d397dac0fb24c
+          else
+            git merge --no-edit --no-ff 73a533b76768850ee21fe7c40fa44d43170099d2
+          fi
+          test -z "$(git ls-files -u)"
+          git rev-parse 'HEAD^{tree}' | tee "$RUNNER_TEMP/tree"
+      - name: Run strict lint, actual guest tests and full regression
+        working-directory: source
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.85.1 --profile minimal --component clippy --target wasm32-unknown-unknown
+          cargo +1.85.1 clippy --locked --all-targets -- -D warnings
+          if [ "$LANE" = export ]; then cargo +1.85.1 test --locked --test preview_visibility -- --nocapture; fi
+          if [ "$LANE" = conditionals ]; then cargo +1.85.1 test --locked --test canonical_keyword_conditionals_main -- --nocapture; fi
+          cargo +1.85.1 test --locked --all-targets
+          cargo +1.85.1 build --locked --bin attoc
+          ATTOC="$PWD/target/debug/attoc" node tests/struct_with_value_guest.mjs
+          ATTOC="$PWD/target/debug/attoc" ATTO_STRUCT_TARGET=js node tests/struct_with_value_guest.mjs
+          git diff --exit-code HEAD --
+          test "$(git rev-parse 'HEAD^{tree}')" = "$(cat "$RUNNER_TEMP/tree")"
+          echo "EXECUTED_INTEGRATION_TREE=$(git rev-parse 'HEAD^{tree}')"
