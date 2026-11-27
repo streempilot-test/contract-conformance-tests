@@ -1,0 +1,35 @@
+name: Atto committed JS integration head
+on:
+  pull_request:
+    branches: [main]
+permissions: {}
+jobs:
+  js:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          node-version: '22'
+      - name: Verify exact public source
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          git init atto-source.js
+          git -C atto-source.js -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.js.git 631739c7127e42455fb7f7a31c6b0265f91d1041
+          git -C atto-source.js -c core.hooksPath=/dev/null checkout --detach FETCH_HEAD
+          test "$(git -C atto-source.js rev-parse HEAD)" = 631739c7127e42455fb7f7a31c6b0265f91d1041
+          test "$(git -C atto-source.js write-tree)" = "$(git -C atto-source.js rev-parse 'HEAD^{tree}')"
+          test "$(git -C atto-source.js hash-object package.json)" = 8887054128c2d1d29052470f132243be54b481ea
+          test "$(git -C atto-source.js hash-object src/program-v2.mjs)" = 5aa2b926a861999a6ca0658abdde3e5031bce515
+          git -C atto-source.js diff --exit-code HEAD
+          git -C atto-source.js rev-parse HEAD 'HEAD^{tree}'
+      - name: Execute integrated tests
+        shell: bash
+        working-directory: atto-source.js
+        run: |
+          set -euo pipefail
+          npm run check
+          npm run test:workers
+          node --test tests/actor-future-host-v1.test.mjs tests/task-future-host-v1.test.mjs tests/portable-task-host-v3.test.mjs tests/portable-task-host-v4.test.mjs tests/portable-task-host-v5.test.mjs tests/worker-completion-adversarial.test.mjs tests/worker-completion-capability-v1.test.mjs tests/scheduled-recover-compiler.test.mjs tests/attached-struct-v1.test.mjs tests/buffered-stdio-host.test.mjs tests/stateless-value-loop.test.mjs tests/scheduled-unwind-compiler.test.mjs
