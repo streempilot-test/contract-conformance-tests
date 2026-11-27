@@ -15,10 +15,10 @@ jobs:
           set -euo pipefail
           git init -q source
           git -C source remote add origin https://github.com/atto-lang/atto-source.rs.git
-          git -C source fetch --no-tags --depth=1 origin 7bcb557a8441fe55f04e5d7327da6ad583e9d853
+          git -C source fetch --no-tags --depth=1 origin cb82cb69d35a543fb6583e39cd6c99ecf23297af
           git -C source checkout --detach FETCH_HEAD
-          test "$(git -C source rev-parse HEAD)" = 7bcb557a8441fe55f04e5d7327da6ad583e9d853
-          test "$(git -C source rev-parse 'HEAD^{tree}')" = 33d22d47db92573b127aba178c316f23d050c935
+          test "$(git -C source rev-parse HEAD)" = cb82cb69d35a543fb6583e39cd6c99ecf23297af
+          test "$(git -C source rev-parse 'HEAD^{tree}')" = 007daf36b65600660c23ef1444559b155be00e46
           git -C source rev-parse HEAD 'HEAD^{tree}'
       - name: Install source-pinned compiler toolchain
         run: |
@@ -123,3 +123,20 @@ jobs:
         if: always()
         working-directory: source/native
         run: cargo clippy --locked --all-targets -- -D warnings
+  rust-native-platform:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Verify exact public source commit and tree
+        run: |
+          set -euo pipefail
+          git init -q source
+          git -C source remote add origin https://github.com/atto-lang/atto-source.rs.git
+          git -C source fetch --no-tags --depth=1 origin cb82cb69d35a543fb6583e39cd6c99ecf23297af
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = cb82cb69d35a543fb6583e39cd6c99ecf23297af
+          test "$(git -C source rev-parse 'HEAD^{tree}')" = 007daf36b65600660c23ef1444559b155be00e46
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec
+      - name: Execute relocated native platform-core suite
+        working-directory: source/native
+        run: ulimit -c 0; cargo test --locked --test platform_core_v1 -- --nocapture
