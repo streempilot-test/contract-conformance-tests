@@ -18,12 +18,12 @@ jobs:
       matrix:
         include:
           - repo: atto-lang/atto-source.rs
-            head: 25e787a3a3d3c8620ce2df1e22c0310f4bf007bc
-            tree: ce64b2fd66243506b07902e1dab2d8e72259dfd5
+            head: e4caff0b4c0b2a206240c7772636c0f7bcfae341
+            tree: 1be6d8a2bca57ae275451b4a9a71db0c07a61cf6
             dir: .
           - repo: atto-lang/atto-source.llvm
-            head: 794d80de04fa59f343b616f197c9d65eb60590c9
-            tree: f97b484c5518c96e987405d31bcc8b1e2ddc2dec
+            head: 853e5d112644a1c706c917f582a427f8e00c416d
+            tree: 7866d09ce24aec4ff75cefe624835e03bc076179
             dir: frontend
     steps:
       - name: Fetch public source anonymously and verify exact root tree
@@ -72,10 +72,10 @@ jobs:
           const entry=' pub fnc main(): int { return ';
           const positives=[
             ...['x?: string? ?= "bar" ??= "star"','string? x? ?? "bar" ??= "star"','x?: Option<string> ?= Some("bar") ??= Some("star")'].map(formal=>[
-              'fnc f('+formal+'): int { match x over on None -> { return 0; } on Some(v) -> { return v.len(); } end }'+entry+'f()+f(None)+f(Some("")); }',7]),
+              'fnc f('+formal+'): int { match x over on None -> { return 0; } on Some(v) -> { return v eq "star" ? 4 : (v eq "bar" ? 3 : (v eq "" ? 0 : 99)); } end }'+entry+'f()+f(None)+f(Some("")); }',7]),
             ['fnc foo(x?: int? ?= 3 ??= 4): int { return 20; } fnc foo(x?: string? ?= "bar" ??= "star"): int { return 22; }'+entry+'foo(Some(1))+foo(Some("x")); }',42],
-            ['fnc f(x?: string? ?= "bar" ??= None): int { match x over on None -> { return 42; } on Some(v) -> { return v.len(); } end }'+entry+'f(); }',42],
-            ['fnc f(x?: string? ?= "bar" ??= "star"): Option<string> { val v: string = x?; return Some(v); } pub fnc main(): int { val v: Option<string> = f(None); match v over on None -> { return 0; } on Some(n) -> { return n.len(); } end }',3],
+            ['fnc f(x?: string? ?= "bar" ??= None): int { match x over on None -> { return 42; } on Some(v) -> { return v eq "star" ? 4 : (v eq "bar" ? 3 : (v eq "" ? 0 : 99)); } end }'+entry+'f(); }',42],
+            ['fnc f(x?: string? ?= "bar" ??= "star"): Option<string> { val v: string = x?; return Some(v); } pub fnc main(): int { val v: Option<string> = f(None); match v over on None -> { return 0; } on Some(n) -> { return n eq "bar" ? 3 : 99; } end }',3],
             ...['int? x? ?= 3 ??= 4','x?: int? ?= 3 ??= 4','x?: Option<int> ?= Some(3) ??= Some(4)'].map(formal=>[
               'fnc f('+formal+'): int { match x over on None -> { return 0; } on Some(n) -> { return n; } end }'+entry+'f()+f(None)+f(Some(35)); }',42]),
             ['fnc f(x?: int? ?= 3 ??= 4): Option<int> { val n: int = x?; return Some(n+1); } pub fnc main(): int { val v: Option<int> = f(None); match v over on None -> { return 0; } on Some(n) -> { return n; } end }',4],
