@@ -12,8 +12,8 @@ jobs:
         include:
           - backend: java
             repo: atto-lang/atto-source.java
-            head: 4bbc42ff6079909d68eb32658b6a6b296b346e48
-            tree: 0bc7a6522b8c5b9424edfa2e10d5dc6cc42ea53f
+            head: 231e5a3c766c3deedf195908c3aa30162f70c86d
+            tree: 18d05882b623ded9a8aa31ad05143206ebc2544c
           - backend: rust
             repo: atto-lang/atto-source.rs
             head: eae46d5b767dd22bc4a82657dd7a7e3199722243
