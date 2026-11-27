@@ -1,0 +1,39 @@
+name: Atto bounded bootstrap and freestanding realtime seed
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/atto-bootstrap-realtime-seed.yml']
+permissions:
+  contents: read
+jobs:
+  core-stage0:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Verify public source and compiler exact pins
+        run: |
+          git init -q source
+          git -C source remote add origin https://github.com/atto-lang/atto-source.atto.git
+          git -C source fetch --no-tags --depth=1 origin 95cd6de5f4593695580ec449bacfca7a192f5678
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = 95cd6de5f4593695580ec449bacfca7a192f5678
+          test "$(git -C source rev-parse 'HEAD^{tree}')" = 1e0000e7c44ec9f2ad1a8404aed8c7de3fe5f898
+          git init -q compiler
+          git -C compiler remote add origin https://github.com/atto-lang/atto-source.rs.git
+          git -C compiler fetch --no-tags --depth=1 origin 86a9960c30c2df479560f225b889a39981b2e582
+          git -C compiler checkout --detach FETCH_HEAD
+          test "$(git -C compiler rev-parse HEAD)" = 86a9960c30c2df479560f225b889a39981b2e582
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Compile actual pinned Rust Stage-0 compiler
+        working-directory: compiler
+        run: cargo build --locked --bin attoc
+      - name: Exact canonical source guest execution
+        working-directory: source
+        run: |
+          BIN="$GITHUB_WORKSPACE/compiler/target/debug/attoc"
+          node tests/freestanding-core-stage0-guest.mjs "$BIN" "$(sha256sum "$BIN" | cut -d ' ' -f1)"
+      - name: Exact source and host oracle
+        working-directory: source
+        run: node --test tests/freestanding-core-source-contract.test.mjs
