@@ -16,8 +16,8 @@ jobs:
             tree: c2aec96692fb07facdb8c98d0d268da75150bdca
           - backend: rust
             repo: atto-lang/atto-source.rs
-            head: 737f00c618e3860a0f9caef711ec36e297556594
-            tree: 856e7189cc5f19d8f33390090ac244553861dbbf
+            head: eae46d5b767dd22bc4a82657dd7a7e3199722243
+            tree: f3eec0d77d3f04522218e2e6bf65683ec78f735f
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -67,6 +67,6 @@ jobs:
         run: |
           set -euo pipefail
           rustup toolchain install 1.85.1 --profile minimal
-          cargo +1.85.1 test --locked --test grouped_spawn_admission
+          cargo +1.85.1 test --locked --test grouped_spawn_admission --test actor_spawn_reservation
       - name: Evidence boundary
         run: echo 'PUBLIC_SOURCE_TREE_TESTS_ONLY; NO PRIVATE EXPORT; NOT GROUPED SPAWN GUEST PARITY'
