@@ -1,0 +1,160 @@
+name: Atto public exact runtime retirement
+on:
+  pull_request:
+    branches: [main]
+permissions: {}
+jobs:
+  llvm-lifecycle:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - cc: gcc
+            flags: "-O2"
+            stress: "yes"
+          - cc: clang
+            flags: "-O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer"
+            stress: "no"
+    steps:
+      - name: Verify exact public source
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          git init "atto-source.llvm"
+          git -C "atto-source.llvm" -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.llvm.git 7d5088783f3392ff7dfac6144ee87e047192059d
+          git -C "atto-source.llvm" -c core.hooksPath=/dev/null checkout --detach FETCH_HEAD
+          test "$(git -C "atto-source.llvm" rev-parse HEAD)" = 7d5088783f3392ff7dfac6144ee87e047192059d
+          test "$(git -C "atto-source.llvm" write-tree)" = "$(git -C "atto-source.llvm" rev-parse 'HEAD^{tree}')"
+          test "$(git -C "atto-source.llvm" hash-object "tests/source_actor_one_for_one_restart_test.c")" = 73c505ea1828f77df9c0668e5c7e72ef79e6d394
+          test "$(git -C "atto-source.llvm" hash-object "tests/source_recovery_lease_v1_test.c")" = e276d62cafeb3eaa3126aa7f7a029f1e7e60a59d
+          git -C "atto-source.llvm" diff --exit-code HEAD
+          git -C "atto-source.llvm" rev-parse HEAD 'HEAD^{tree}'
+      - name: Execute real tests
+        shell: bash
+        working-directory: atto-source.llvm
+        run: |
+          set -euo pipefail
+          ${{ matrix.cc }} ${{ matrix.flags }} -std=c11 -pthread -Wall -Wextra -Wpedantic -Werror -UNDEBUG -DORESLANG_SOURCE_ACTOR_TESTING -Isrc/main/cpp tests/source_actor_one_for_one_restart_test.c src/main/cpp/oreslang/runtime/{ActorOwnedI64Heap,NativeActorScheduler,NativeOresVM,NativeActorFuture,SourceActorBootstrap,NativeActorLogicalFramesV1,NativeExecutionContextStore,NativeContinuationStore,NativeAwaitTraceBridge,NativeLogicalTrace}.c -o /tmp/atto-restart
+          for mode in default --exhaust --capacity --reuse --failed-reuse --failed-stop-reuse; do
+            echo "LIFECYCLE mode=$mode"
+            if [[ "$mode" == default ]]; then timeout 90s /tmp/atto-restart 2>&1 | tail -80; else timeout 90s /tmp/atto-restart "$mode" 2>&1 | tail -80; fi
+          done
+          if [[ "${{ matrix.stress }}" == yes ]]; then
+            for mode in --reuse-million --failed-reuse-million; do
+              echo "LIFECYCLE mode=$mode"
+              timeout 600s /tmp/atto-restart "$mode" 2>&1 | tail -80
+            done
+          fi
+  forge-owner:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - cxx: g++
+            flags: "-O2"
+          - cxx: clang++
+            flags: "-O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer"
+    steps:
+      - name: Verify exact public source
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          git init "atto-source.forge"
+          git -C "atto-source.forge" -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.forge.git 74365f17be8e811188b0f9dd4c90142b2c04b486
+          git -C "atto-source.forge" -c core.hooksPath=/dev/null checkout --detach FETCH_HEAD
+          test "$(git -C "atto-source.forge" rev-parse HEAD)" = 74365f17be8e811188b0f9dd4c90142b2c04b486
+          test "$(git -C "atto-source.forge" write-tree)" = "$(git -C "atto-source.forge" rev-parse 'HEAD^{tree}')"
+          test "$(git -C "atto-source.forge" hash-object "verification/actor_incarnation_owner_v1_test.cpp")" = 93314afe5fe5605af62b248bbccf94cf3a24e371
+          test "$(git -C "atto-source.forge" hash-object "runtime/ActorIncarnationOwnerV1.hpp")" = 806913d5a5ef1890b7d2bd2030f98fa2a49c74ea
+          git -C "atto-source.forge" diff --exit-code HEAD
+          git -C "atto-source.forge" rev-parse HEAD 'HEAD^{tree}'
+      - name: Execute real tests
+        shell: bash
+        working-directory: atto-source.forge
+        run: |
+          set -euo pipefail
+          ${{ matrix.cxx }} ${{ matrix.flags }} -std=c++20 -pthread -Wall -Wextra -Wpedantic -Werror -I. verification/actor_incarnation_owner_v1_test.cpp runtime/actor.cpp -o /tmp/forge-owner
+          timeout 90s /tmp/forge-owner
+  java-finalization:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Verify exact public source
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          git init "atto-source.java"
+          git -C "atto-source.java" -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.java.git 9913a8bb1e2c5884cd08609c60fe6ae60bdad222
+          git -C "atto-source.java" -c core.hooksPath=/dev/null checkout --detach FETCH_HEAD
+          test "$(git -C "atto-source.java" rev-parse HEAD)" = 9913a8bb1e2c5884cd08609c60fe6ae60bdad222
+          test "$(git -C "atto-source.java" write-tree)" = "$(git -C "atto-source.java" rev-parse 'HEAD^{tree}')"
+          test "$(git -C "atto-source.java" hash-object "src/main/java/dev/oreslang/runtime/ActorRuntime.java")" = e0f0226198d0774bffa87644c563b50063899805
+          test "$(git -C "atto-source.java" hash-object "src/main/java/dev/oreslang/runtime/ActorContinuationLedger.java")" = 2df2c570b295cbf6f532e7ba2c7a30e48ffd5f73
+          test "$(git -C "atto-source.java" hash-object "src/test/java/dev/oreslang/runtime/SettlementProbe.java")" = 668b3b353e379a1d52865ea1380dbde9b06c3096
+          git -C "atto-source.java" diff --exit-code HEAD
+          git -C "atto-source.java" rev-parse HEAD 'HEAD^{tree}'
+      - name: Execute real tests
+        shell: bash
+        working-directory: atto-source.java
+        run: |
+          set -euo pipefail
+          export JAVA_HOME="$JAVA_HOME_21_X64"
+          export PATH="$JAVA_HOME/bin:$PATH"
+          java -version
+          mvn -B -ntp -Dtest=ActorContinuationLedgerTest test
+  net-host:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Verify exact public source
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          git init "atto-source.net"
+          git -C "atto-source.net" -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.net.git 3649719b256f5d2604aece39e39bd079e0e1ad76
+          git -C "atto-source.net" -c core.hooksPath=/dev/null checkout --detach FETCH_HEAD
+          test "$(git -C "atto-source.net" rev-parse HEAD)" = 3649719b256f5d2604aece39e39bd079e0e1ad76
+          test "$(git -C "atto-source.net" write-tree)" = "$(git -C "atto-source.net" rev-parse 'HEAD^{tree}')"
+          test "$(git -C "atto-source.net" hash-object "verification/Ores.Net.Tests/SelectContinuationFenceSelfTest.cs")" = 0cd7becce6e0129216278da6c94004d415291d59
+          test "$(git -C "atto-source.net" hash-object "verification/Ores.Net.Tests/Ores.Net.Tests.csproj")" = 90aaa0f2d7738f5a39b839a4fc51882b8a586d1a
+          git -C "atto-source.net" diff --exit-code HEAD
+          git -C "atto-source.net" rev-parse HEAD 'HEAD^{tree}'
+      - name: Execute real tests
+        shell: bash
+        working-directory: atto-source.net
+        run: |
+          set -euo pipefail
+          dotnet --info
+          dotnet run --project verification/Ores.Net.Tests/Ores.Net.Tests.csproj -c Release
+  wasm-declaration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Verify exact public source
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          git init "atto-source.wasm"
+          git -C "atto-source.wasm" -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.wasm.git 1a2914419950ff70886da6c7560d4ba5387c68cf
+          git -C "atto-source.wasm" -c core.hooksPath=/dev/null checkout --detach FETCH_HEAD
+          test "$(git -C "atto-source.wasm" rev-parse HEAD)" = 1a2914419950ff70886da6c7560d4ba5387c68cf
+          test "$(git -C "atto-source.wasm" write-tree)" = "$(git -C "atto-source.wasm" rev-parse 'HEAD^{tree}')"
+          test "$(git -C "atto-source.wasm" hash-object "tools/repo-policy/src/main.rs")" = e3ac0a4d4b736cd2cff77698fe8d8a7fc4d91b1f
+          git -C "atto-source.wasm" diff --exit-code HEAD
+          git -C "atto-source.wasm" rev-parse HEAD 'HEAD^{tree}'
+      - name: Execute real tests
+        shell: bash
+        working-directory: atto-source.wasm
+        run: |
+          set -euo pipefail
+          cargo test --locked --manifest-path tools/repo-policy/Cargo.toml
+          cargo run --locked --quiet --manifest-path tools/repo-policy/Cargo.toml --bin verify-integration-manifest -- --repository-root .
