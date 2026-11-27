@@ -1,0 +1,26 @@
+name: Exact ten-million scalar loop real guest
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/ten-million-loop-748.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  rust:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Authenticate and execute actual Rust compiler and guest
+        run: |
+          set -euo pipefail
+          git init src
+          git -C src -c credential.helper= -c http.extraHeader= fetch --depth=1 --no-tags https://github.com/atto-lang/atto-source.rs.git f13fe90268b83ee3439202c292ab6b459c6ce743
+          git -C src checkout --detach FETCH_HEAD
+          test "$(git -C src rev-parse HEAD)" = f13fe90268b83ee3439202c292ab6b459c6ce743
+          test "$(git -C src write-tree)" = 0c481e9cfc40d6d4f3d20b67d46e294215963ee5
+          cd src
+          rustup toolchain install 1.85.1 --profile minimal
+          cargo +1.85.1 build --locked --release --bin attoc
+          ATTOC=target/release/attoc node --test tests/value-loop-ten-million.test.mjs
+          git diff --exit-code
