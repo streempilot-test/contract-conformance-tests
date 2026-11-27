@@ -1,0 +1,29 @@
+name: Atto JS nominal Record 299 exact guest
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/atto-js-nominal-record-299.yml'
+permissions:
+  contents: read
+jobs:
+  js:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Pin public source and verify both changed blobs
+        run: |
+          set -eu
+          git init guest-source
+          cd guest-source
+          git -c credential.helper= fetch --depth=1 https://github.com/atto-lang/atto-source.js.git 72b290efb7895e0540043704c5f86a9e83c0acf3
+          git checkout --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = 72b290efb7895e0540043704c5f86a9e83c0acf3
+          git rev-parse HEAD^{tree}
+          test "$(git hash-object src/compiler.mjs)" = c7c3117646ef231bdd17084fd43aee5ff46c78a4
+          test "$(git hash-object tests/nominal-record-methods-scalar.test.mjs)" = 0a1ec8ccbc64daaaf236851e1d1cc01a44dc2e63
+      - name: Execute emitted nominal Record methods
+        working-directory: guest-source
+        run: node --test tests/nominal-record-methods-scalar.test.mjs
+      - name: Full compiler regression
+        working-directory: guest-source
+        run: npm test
