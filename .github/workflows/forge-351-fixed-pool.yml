@@ -1,0 +1,48 @@
+name: Forge exact public source fixed-pool native reference
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/forge-351-fixed-pool.yml'
+permissions:
+  contents: read
+jobs:
+  host:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [g++, clang++]
+        profile: [release, sanitizer]
+    steps:
+      - name: Fetch exact public candidate without credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git -c credential.helper= clone --no-checkout https://github.com/atto-lang/atto-source.forge.git "$RUNNER_TEMP/forge"
+          cd "$RUNNER_TEMP/forge"
+          git checkout --detach f58efbc846dcb2213ecefdc7b3edfc6f4de847ce
+          test "$(git rev-parse HEAD)" = f58efbc846dcb2213ecefdc7b3edfc6f4de847ce
+          git rev-parse HEAD^{tree}
+          test "$(git hash-object verification/fixed-pool/oreslang/runtime/FixedBufferReusePrototype.hpp)" = 737cc95fea7f5c37ca1e78e8497ef972de458b5b
+          test "$(git hash-object verification/fixed-pool/fixed_buffer_reuse_prototype_test.cpp)" = bc535cf8e5b8c945fe427159b1e075ed3ad82f18
+          test "$(git hash-object CMakeLists.txt)" = 80ed4ab18a5d849597fcd012798cfac4f7210594
+          test -z "$(git status --porcelain)"
+      - name: Configure full Forge tree and execute focused native target
+        shell: bash
+        env:
+          CXX: ${{ matrix.compiler }}
+          PROFILE: ${{ matrix.profile }}
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/forge"
+          args=(-DCMAKE_BUILD_TYPE=Release)
+          if [ "$PROFILE" = sanitizer ]; then
+            args=(-DCMAKE_BUILD_TYPE=Debug '-DCMAKE_CXX_FLAGS=-O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer -no-pie' '-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined -no-pie')
+          fi
+          "$CXX" --version
+          cmake -S . -B "$RUNNER_TEMP/forge-build" -DCMAKE_CXX_COMPILER="$CXX" -DBUILD_TESTING=ON "${args[@]}"
+          cmake --build "$RUNNER_TEMP/forge-build" --target oresforge_fixed_pool_host_reference -j2
+          ctest --test-dir "$RUNNER_TEMP/forge-build" -R '^forge_fixed_pool_host_reference$' --no-tests=error --verbose
+          git diff --exit-code
