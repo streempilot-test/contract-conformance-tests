@@ -1,0 +1,23 @@
+name: Atto shared differential policy oracle
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/atto-differential-reference-20261127.yml']
+permissions:
+  contents: read
+jobs:
+  reference:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Fetch exact public source and execute reference tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-platform-conformance.git 1ba6eda4f2f6434e2be64fec25a7e42fc184487a
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = 1ba6eda4f2f6434e2be64fec25a7e42fc184487a
+          git -C source rev-parse HEAD^{tree}
+          node --test source/tests/arena-policy-differential-v1.test.mjs
