@@ -14,10 +14,10 @@ jobs:
         run: |
           git init -q source
           git -C source remote add origin https://github.com/atto-lang/atto-source.rs.git
-          git -C source fetch --no-tags --depth=1 origin 34e7b36617269e9c57fc520cf4f8ae35514f42f0
+          git -C source fetch --no-tags --depth=1 origin 1811fe0e313347e6db44d1ed84f083d04ac23bb8
           git -C source checkout --detach FETCH_HEAD
-          test "$(git -C source rev-parse HEAD)" = 34e7b36617269e9c57fc520cf4f8ae35514f42f0
-          test "$(git -C source rev-parse 'HEAD^{tree}')" = e89a6c0e9b7b67d03330adc148f16e24536337b9
+          test "$(git -C source rev-parse HEAD)" = 1811fe0e313347e6db44d1ed84f083d04ac23bb8
+          test "$(git -C source rev-parse 'HEAD^{tree}')" = 80fbc47c50a761e2ecfbdf641442303d4c76bbab
           test "$(git -C source hash-object contracts/atto-xo-checked-u64-debit-v1/cases.tsv)" = 2d41ae576d049ed3a8898c3deacc8d30c705dce8
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec
       - name: Actual unsigned native guest execution
@@ -30,7 +30,11 @@ jobs:
       - name: Format and strict lint
         if: always()
         working-directory: source/native
-        run: cargo fmt --all -- --check && cargo clippy --locked --all-targets -- -D warnings
+        run: cargo fmt --all -- --check
+      - name: Strict Clippy independent of format result
+        if: always()
+        working-directory: source/native
+        run: cargo clippy --locked --all-targets -- -D warnings
   dotnet:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
