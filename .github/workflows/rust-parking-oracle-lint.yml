@@ -1,8 +1,8 @@
-name: Atto approved Rust and Forge refreshed integration
+name: Atto Rust parking oracle exact-head qualification
 on:
   push:
-    branches: [ci/approved-rust-forge-refresh-20261127]
-    paths: [.github/workflows/approved-rust-forge-refresh.yml]
+    branches: [ci/rust-parking-oracle-lint-566badf-20261127]
+    paths: [.github/workflows/rust-parking-oracle-lint.yml]
 permissions:
   contents: read
 jobs:
@@ -16,15 +16,8 @@ jobs:
             pr: '723'
             base: 'ad653316df5e4f369d00ed76c0195254ee9d3ff5'
             baseTree: '20439ab935fa58e8beae3f71af533b7c7197da09'
-            head: '0106a2d8b05afd0b5a4ce87338d17df3acefa729'
-            tree: 'a00df83ef8ffddd4c66bd5847310e127a64e4716'
-          - lane: 'forge'
-            repo: 'atto-source.forge'
-            pr: '327'
-            base: 'e88796d4f384b70e22970d2834e8925dff4199f6'
-            baseTree: 'b45d37826e03cc20198a61d659a7ed883c020c44'
-            head: '49160f1fdb0dec11de33e085cf6950ad7551fbab'
-            tree: 'b9991fecfe69575d4243254c2d33668918c4bfac'
+            head: '566badf5adf0d245a264cbd8e8695c092e7a49eb'
+            tree: '6176623621975dc42b6918b9a1bb84cb48b80499'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
