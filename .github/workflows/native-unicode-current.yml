@@ -31,7 +31,7 @@ jobs:
             test -z "$(git -C "$1" status --porcelain --untracked-files=all)"
           }
           fetch_exact source "https://github.com/atto-lang/atto-source.$BACKEND.git" "$SOURCE" "$TREE"
-          fetch_exact common https://github.com/atto-lang/atto-common-source.git 37a0cbb3619832c5b21113c7bd7350e468043ade 962bbe80ad645c78e8d68ea007f9d4bd8d626cd3
+          fetch_exact common https://github.com/atto-lang/atto-common-source.git 64b590fbd024f66f1e8471dec2a7d3bba88eaab3 4f1a69d5dbac93afcf38731bda28824ab11cc943
           node --test common/tests/native-compiler-result-v1.test.mjs
       - name: Forge ordinary compiler native guest execution
         if: matrix.backend == 'forge'
@@ -63,7 +63,7 @@ jobs:
           git -C source diff --exit-code
           test "$(git -C source write-tree)" = "$TREE"
           git -C common diff --exit-code
-          test "$(git -C common write-tree)" = 962bbe80ad645c78e8d68ea007f9d4bd8d626cd3
+          test "$(git -C common write-tree)" = 4f1a69d5dbac93afcf38731bda28824ab11cc943
 
           node common/scripts/run-unicode-native-scalar-conformance-v1.mjs forge source 3179befbe867bd71622f3b7f25e832304bfb16b2 d07a20294aeed6e0d81108599bf971730c32a7ba "$RUNNER_TEMP/forge/forge_scalar"
       - name: Cranelift ordinary native object execution
@@ -89,4 +89,4 @@ jobs:
           git -C source diff --exit-code
           test "$(git -C source write-tree)" = "$TREE"
           git -C common diff --exit-code
-          test "$(git -C common write-tree)" = 962bbe80ad645c78e8d68ea007f9d4bd8d626cd3
+          test "$(git -C common write-tree)" = 4f1a69d5dbac93afcf38731bda28824ab11cc943
