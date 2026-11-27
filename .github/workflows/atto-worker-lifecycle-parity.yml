@@ -1,0 +1,66 @@
+name: Atto exact JS and WASM Worker lifecycle
+on:
+  pull_request:
+    branches: [main]
+permissions: {}
+jobs:
+  js-workers:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Verify exact public source
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          git init atto-source.js
+          git -C atto-source.js -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.js.git refs/heads/feat/js-worker-control-loop-v1-20261121
+          git -C atto-source.js -c core.hooksPath=/dev/null checkout --detach FETCH_HEAD
+          test "$(git -C atto-source.js rev-parse HEAD)" = bffe9b767d9abf51e8d409d1494add207e1be89e
+          test "$(git -C atto-source.js write-tree)" = "$(git -C atto-source.js rev-parse 'HEAD^{tree}')"
+          test "$(git -C atto-source.js hash-object 'src/worker-control-loop.mjs')" = a80b1a60d93f55ccbc8b1a72775f5a7a22333461
+          test "$(git -C atto-source.js hash-object 'tests/worker-control-loop-node.test.mjs')" = 3685100dac4a8fa60714e1f21057374b5073531b
+          git -C atto-source.js diff --exit-code HEAD
+          git -C atto-source.js rev-parse HEAD 'HEAD^{tree}'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Execute real Worker and host regressions
+        shell: bash
+        working-directory: atto-source.js
+        run: |
+          set -euo pipefail
+          node --version
+          npm run test:workers
+          node --test tests/actor-future-host-v1.test.mjs tests/task-future-host-v1.test.mjs tests/portable-task-host-v3.test.mjs tests/portable-task-host-v4.test.mjs tests/portable-task-host-v5.test.mjs tests/worker-completion-adversarial.test.mjs tests/worker-completion-capability-v1.test.mjs
+  wasm-workers:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Verify exact public source
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          git init atto-source.wasm
+          git -C atto-source.wasm -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.wasm.git bcc7795d83f75e466dcf071485dcc365b4b5ac48
+          git -C atto-source.wasm -c core.hooksPath=/dev/null checkout --detach FETCH_HEAD
+          test "$(git -C atto-source.wasm rev-parse HEAD)" = bcc7795d83f75e466dcf071485dcc365b4b5ac48
+          test "$(git -C atto-source.wasm write-tree)" = "$(git -C atto-source.wasm rev-parse 'HEAD^{tree}')"
+          test "$(git -C atto-source.wasm hash-object 'src/supervised-pooled-actor.mjs')" = b4bbc638858dda403790d6114c3a219273a33e47
+          test "$(git -C atto-source.wasm hash-object 'tests/supervised-pooled-actor-v1.test.mjs')" = cf360d7f42178737df29c3190bc03c776d42191e
+          git -C atto-source.wasm diff --exit-code HEAD
+          git -C atto-source.wasm rev-parse HEAD 'HEAD^{tree}'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Execute real Worker and host regressions
+        shell: bash
+        working-directory: atto-source.wasm
+        run: |
+          set -euo pipefail
+          node --version
+          clang --version
+          npm run test:supervised-pooled-actors
+          npm run test:host-continuation-fence
+          npm run test:managed-pooled-actors
