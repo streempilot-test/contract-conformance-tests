@@ -1,0 +1,41 @@
+name: Exact native LLVM stateless value loop
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/llvm-native-stateless-loop.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  llvm:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Authenticate exact public LLVM source
+        run: |
+          set -euo pipefail
+          git init src
+          git -C src -c credential.helper= -c http.extraHeader= fetch --depth=1 --no-tags https://github.com/atto-lang/atto-source.llvm.git a8be9cfac34127e0c328d8f20c315e56ebb4eb74
+          git -C src checkout --detach FETCH_HEAD
+          test "$(git -C src rev-parse HEAD)" = a8be9cfac34127e0c328d8f20c315e56ebb4eb74
+          test "$(git -C src write-tree)" = 48e6ce8bef37707510ec35aa108a44995eb55e75
+      - name: Install LLVM native compiler toolchain
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends clang llvm-dev cmake ninja-build nodejs
+      - name: Build actual native source compiler
+        run: |
+          set -euo pipefail
+          cd src
+          cmake -G Ninja -S . -B "$RUNNER_TEMP/loop-build" -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DLLVM_DIR="$(llvm-config --cmakedir)"
+          cmake --build "$RUNNER_TEMP/loop-build" --target oreslang-llvmc --parallel 2
+          test -x "$RUNNER_TEMP/loop-build/oreslang-llvmc"
+      - name: Execute shared stateless loop and existing scalar guest corpus
+        run: |
+          set -euo pipefail
+          cd src
+          export ORESLANG_LLVMC="$RUNNER_TEMP/loop-build/oreslang-llvmc"
+          export ATTO_EXECUTED_STEPS=5 ATTO_RECEIPT_PATH="$RUNNER_TEMP/scalar-receipt.json"
+          node tests/native_stateless_value_loop.mjs
+          node tests/atto_scalar_v1_execution.mjs
+          git diff --exit-code
