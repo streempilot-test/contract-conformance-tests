@@ -1,0 +1,34 @@
+name: Atto Cranelift arena policy native guest
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/atto-arena-policy-cranelift-20261127.yml']
+permissions:
+  contents: read
+jobs:
+  native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Fetch exact public source
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.cranelift.git de0ff03cf9a9926eafe6f1542a20c547073cbc7e
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = de0ff03cf9a9926eafe6f1542a20c547073cbc7e
+          git -C source rev-parse HEAD^{tree}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build compiler and execute policy guest
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd source
+          rustc --version
+          cargo build --locked --release --bin orescranelift
+          ATTOC="$PWD/target/release/orescranelift" node tests/arena-quota-lifecycle-native.mjs
+          git diff --exit-code

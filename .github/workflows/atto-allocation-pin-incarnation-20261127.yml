@@ -1,0 +1,24 @@
+name: Contextual allocation pin incarnation reference
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/atto-allocation-pin-incarnation-20261127.yml']
+permissions:
+  contents: read
+jobs:
+  reference:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Fetch exact public source and verify committed reference
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-common-source.git 630c42e3091a64f2b5ec8429731fe36b34759067
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = 630c42e3091a64f2b5ec8429731fe36b34759067
+          git -C source rev-parse HEAD^{tree}
+          test "$(git hash-object source/tools/contextual-allocation-events-v1.mjs)" = fc35d0d188d19eccba3a9d50b7eda50cbf2f97f8
+          node source/tools/contextual-allocation-events-v1.mjs
