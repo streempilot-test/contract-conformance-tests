@@ -1,0 +1,80 @@
+name: Java lifetime stack full regression and baseline
+on:
+  push:
+    branches: [ci/java-lifetime-native-full-20261126]
+permissions:
+  contents: read
+jobs:
+  java:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      GIT_TERMINAL_PROMPT: '0'
+    steps:
+      - name: Authenticate candidate and baseline source trees
+        run: |
+          set -euo pipefail
+          git init java
+          git -C java -c credential.helper= -c http.extraHeader= fetch --depth=1 --no-tags https://github.com/atto-lang/atto-source.java.git 55a780cda6a575cdef48e420bf0790d1a812e07e
+          git -C java checkout --detach FETCH_HEAD
+          test "$(git -C java rev-parse HEAD)" = 55a780cda6a575cdef48e420bf0790d1a812e07e
+          test "$(git -C java rev-parse HEAD^{tree})" = f69880e086d297cbcc8a0dc2de21807fafe02466
+          git -C java fsck --full --no-reflogs
+          git init baseline
+          git -C baseline -c credential.helper= -c http.extraHeader= fetch --depth=1 --no-tags https://github.com/atto-lang/atto-source.java.git 58d1e83b36733a82e5eb3857f3bffcb58d80f38b
+          git -C baseline checkout --detach FETCH_HEAD
+          test "$(git -C baseline rev-parse HEAD)" = 58d1e83b36733a82e5eb3857f3bffcb58d80f38b
+          test "$(git -C baseline rev-parse HEAD^{tree})" = 2df45a0295d2403c2fd25ed1ec6b0c075a2ecf8b
+          git -C baseline fsck --full --no-reflogs
+      - name: Setup GraalVM 25
+        uses: graalvm/setup-graalvm@27b360dbb857524eaf0b4c4cef364d38e5b4f173
+        with:
+          java-version: '25'
+          version: '25.3'
+          distribution: graalvm
+      - name: Execute focused ownership tests
+        working-directory: java
+        run: mvn -B -ntp -Dtest=ContiguousScalarReadLoanLifetimeTest,IndexedNominalTransferProofTest,NominalFieldTransferProofTest,BorrowedProjectionOwnedEscapeTest,InferredScalarReadLoanLifetimeTest,UnusedScalarFieldLoanLifetimeTest,ProjectedMethodReceiverLoanTest test
+      - name: Full candidate and baseline Maven regressions
+        run: |
+          set -uo pipefail
+          candidate_rc=0
+          baseline_rc=0
+          (cd java && mvn -B -ntp -Dmaven.test.failure.ignore=false test) > candidate.log 2>&1 || candidate_rc=$?
+          (cd baseline && mvn -B -ntp -Dmaven.test.failure.ignore=false test) > baseline.log 2>&1 || baseline_rc=$?
+          for d in candidate baseline; do
+            echo "FULL_SUITE $d"
+            grep -E 'Tests run:|BUILD (SUCCESS|FAILURE)|\[ERROR\]' "$d.log" | tail -n 100 || true
+          done
+          echo "FULL_SUITE_EXIT candidate=$candidate_rc baseline=$baseline_rc"
+          test "$candidate_rc" = 0
+          test "$baseline_rc" = 0
+      - name: Compare exact failed test identities
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import pathlib, xml.etree.ElementTree as ET
+          def failures(root):
+              files = list(pathlib.Path(root, "target/surefire-reports").glob("TEST-*.xml"))
+              if not files: raise SystemExit("no XML reports: " + root)
+              out = {}
+              for p in files:
+                  for t in ET.parse(p).getroot().iter("testcase"):
+                      for kind in ("failure", "error"):
+                          detail = t.find(kind)
+                          if detail is not None:
+                              out[(t.get("classname"),t.get("name"))] = (kind, detail.get("message","")[:300])
+              return out
+          base, candidate = failures("baseline"), failures("java")
+          print("BASELINE_FAILED", len(base), "CANDIDATE_FAILED",len(candidate))
+          for k in sorted(candidate.keys()-base.keys()): print("CANDIDATE_ONLY",k,candidate[k])
+          for k in sorted(base.keys()-candidate.keys()): print("BASELINE_ONLY",k,base[k])
+          for k in sorted(base.keys() & candidate.keys()):
+              if base[k][0] != candidate[k][0]: print("FAILURE_KIND_CHANGED",k,base[k],candidate[k])
+          PY
+      - name: Verify tracked source remains exact
+        if: always()
+        working-directory: java
+        run: |
+          test "$(git rev-parse HEAD^{tree})" = f69880e086d297cbcc8a0dc2de21807fafe02466
+          git diff --exit-code HEAD
