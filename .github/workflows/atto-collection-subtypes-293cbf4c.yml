@@ -1,0 +1,26 @@
+name: Atto collection subtype reference 293cbf4c (HOST ONLY)
+on:
+  pull_request:
+    paths:
+      - 'ci/atto-collection-subtypes-293cbf4c.mjs'
+      - '.github/workflows/atto-collection-subtypes-293cbf4c.yml'
+permissions:
+  contents: read
+jobs:
+  reference:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Verify exact public source blob
+        run: |
+          set -eu
+          test "$(git hash-object ci/atto-collection-subtypes-293cbf4c.mjs)" = 07d3d15a6cf63c62e56fbb3fe9819aaf603ed1a6
+          echo 'Public source head 293cbf4c0df94603379872ab714e6707ad7ac6d5'
+      - name: Execute host reference assertions
+        run: |
+          set -eu
+          node --version
+          node ci/atto-collection-subtypes-293cbf4c.mjs
