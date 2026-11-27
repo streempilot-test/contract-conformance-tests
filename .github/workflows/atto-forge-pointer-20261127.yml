@@ -17,8 +17,8 @@ jobs:
           - cc: clang
             cxx: clang++
     env:
-      SOURCE_HEAD: 2d10ea9f1d544a63bc6ac0da3d7d792d53137754
-      SOURCE_TREE: 47367a4984ac5710016e11474858a1bcf71962be
+      SOURCE_HEAD: 6e1a2ede6fca11a80fe73f7a7de23b07708a6841
+      SOURCE_TREE: ac7e004eb6838323563e2f144f83a1c977608f51
       CC: ${{ matrix.cc }}
       CXX: ${{ matrix.cxx }}
       GIT_TERMINAL_PROMPT: '0'
@@ -66,6 +66,14 @@ jobs:
           if "$RUNNER_TEMP/forge/forge_scalar" "$dir/oversized.atto" -o "$dir/oversized.cpp"; then exit 1; fi
           test ! -e "$dir/oversized.cpp"
           echo FORGE_CATALOG_GUEST_PASS
+          printf '%s\n' 'pub fnc main() -> int {return 42000<Millimeter>.to_unit<Meter>()/1<Meter>;}' > "$dir/implicit.atto"
+          "$RUNNER_TEMP/forge/forge_scalar" "$dir/implicit.atto" -o "$dir/implicit.cpp"
+          "$CXX" -std=c++20 -Wall -Wextra -Werror -fsanitize=address,undefined -fno-omit-frame-pointer -Iinclude "$dir/implicit.cpp" -o "$dir/implicit"
+          test "$("$dir/implicit")" = 42
+          printf '%s\n' 'pub fnc main() -> int {return 42<Meter>/1<Second>;}' > "$dir/bad.atto"
+          if "$RUNNER_TEMP/forge/forge_scalar" "$dir/bad.atto" -o "$dir/bad.cpp"; then exit 1; fi
+          test ! -e "$dir/bad.cpp"
+          echo FORGE_IMPLICIT_GUEST_PASS
       - name: Verify source unchanged after tests
         run: |
           set -euo pipefail
