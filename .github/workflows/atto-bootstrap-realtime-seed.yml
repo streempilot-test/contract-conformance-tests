@@ -1,0 +1,75 @@
+name: Atto bounded bootstrap and freestanding realtime seed
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/atto-bootstrap-realtime-seed.yml']
+permissions:
+  contents: read
+jobs:
+  bootstrap:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Verify exact source and compiler
+        run: |
+          git init -q source
+          git -C source remote add origin https://github.com/atto-lang/atto-source.atto.git
+          git -C source fetch --no-tags --depth=1 origin 64ccce0f8b2738460c2a7134103cc413e6d541c9
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = 64ccce0f8b2738460c2a7134103cc413e6d541c9
+          test "$(git -C source rev-parse 'HEAD^{tree}')" = 70f9d6a136056ee330d512bf4aaa35d7a54b5a5b
+          test "$(git -C source hash-object src/scalar_codegen.atto)" = 7f3c3044c8791fbd8adbf66d5b814c20d4d47da0
+          git init -q compiler
+          git -C compiler remote add origin https://github.com/atto-lang/atto-source.llvm.git
+          git -C compiler fetch --no-tags --depth=1 origin d6b1836be9bf05d85530c229c72043db21b9e9f9
+          git -C compiler checkout --detach FETCH_HEAD
+          test "$(git -C compiler rev-parse HEAD)" = d6b1836be9bf05d85530c229c72043db21b9e9f9
+          git -C compiler rev-parse 'HEAD^{tree}'
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Build pinned native LLVM compiler
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y llvm-18-dev clang-18 lld-18
+          cmake -S compiler -B "$RUNNER_TEMP/compiler-build" -DLLVM_DIR="$(llvm-config-18 --cmakedir)" -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
+          cmake --build "$RUNNER_TEMP/compiler-build" --target oreslang-llvmc --parallel 2
+      - name: Actual native Stage-0 source guest matrix
+        working-directory: source
+        run: |
+          BIN="$RUNNER_TEMP/compiler-build/oreslang-llvmc"
+          node scripts/stage0_native_gate.mjs --compiler="$BIN" --compiler-sha256="$(sha256sum "$BIN" | cut -d ' ' -f1)" --compiler-source-commit=d6b1836be9bf05d85530c229c72043db21b9e9f9 --source=src/scalar_codegen.atto --source-blob=7f3c3044c8791fbd8adbf66d5b814c20d4d47da0 --quantity-seed=1 --contract-seed=1 --clang=clang-18
+      - name: Source and model regression
+        if: always()
+        working-directory: source
+        run: node --test tests/*.test.mjs
+  realtime:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Verify exact public sources
+        run: |
+          git init -q source
+          git -C source remote add origin https://github.com/atto-lang/atto-source.realtime.git
+          git -C source fetch --no-tags --depth=1 origin db8129ce5eafec21a5a2c688e71f8e7de8885d10
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = db8129ce5eafec21a5a2c688e71f8e7de8885d10
+          test "$(git -C source rev-parse 'HEAD^{tree}')" = f9bfbe139dae2dd399ff9145206d53ce41e26fbf
+          git init -q forge
+          git -C forge remote add origin https://github.com/atto-lang/atto-source.forge.git
+          git -C forge fetch --no-tags --depth=1 origin 38c261a38a0bdbc93f2971411879a9c90cb88d39
+          git -C forge checkout --detach FETCH_HEAD
+          test "$(git -C forge rev-parse HEAD)" = 38c261a38a0bdbc93f2971411879a9c90cb88d39
+          test "$(git -C forge rev-parse 'HEAD^{tree}')" = eee62fe519564751f74f524889715df501b30a03
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: GCC and Clang native freestanding kernels
+        run: |
+          for CXX in g++ clang++; do
+            "$CXX" -std=c++20 -O2 -Wall -Wextra -Werror -I forge/include source/src/strict_quantity_seed.cpp -o "$RUNNER_TEMP/rt-seed"
+            CXX="$CXX" node source/tests/strict_quantity_native_gate.mjs "$RUNNER_TEMP/rt-seed"
+          done
+      - name: Realtime source regression
+        if: always()
+        working-directory: source
+        run: node --test tests/*.test.mjs
