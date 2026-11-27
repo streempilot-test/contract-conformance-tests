@@ -14,8 +14,8 @@ jobs:
       matrix:
         include:
           - pr: 760
-            head: 572359fcf4a35935f396063ffccb8bcd21c18288
-            tree: 5ba77ebc37222538e6ab7d717e46f741fb5eefee
+            head: 8dd691f0986f3bef2ec5d90d263268e743e3c887
+            tree: a130b4b5317e1f12a0ec39ff400d2ab32f0d5ce8
           - pr: 762
             head: 8592d40c10742de87ea6a1542d038f927a515ea5
             tree: fbc0bb39bdaea884ab2185d28b40444435a06d42
