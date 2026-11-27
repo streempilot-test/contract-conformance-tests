@@ -1,0 +1,48 @@
+name: Exact Forge signed pointer native verification
+on:
+  push:
+    branches: ['verify/atto-forge-signed-pointer-20261127']
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - cc: gcc
+            cxx: g++
+          - cc: clang
+            cxx: clang++
+    env:
+      SOURCE_HEAD: cf678f4477306cc27f065a12eb1f9ccd49857b41
+      SOURCE_TREE: 49cdbbf87086580395106fbd67a51cd9c98f2b46
+      CC: ${{ matrix.cc }}
+      CXX: ${{ matrix.cxx }}
+      GIT_TERMINAL_PROMPT: '0'
+    steps:
+      - name: Fetch public source without credentials and verify exact tree
+        run: |
+          set -euo pipefail
+          git init source
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.forge.git "$SOURCE_HEAD"
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = "$SOURCE_HEAD"
+          test "$(git -C source rev-parse HEAD^{tree})" = "$SOURCE_TREE"
+          git -C source diff --exit-code HEAD --
+          git -C source fsck --full --no-reflogs
+      - name: Compile typed checker and actual native guest emitter with sanitizers
+        working-directory: source
+        run: |
+          set -euo pipefail
+          cmake -S . -B "$RUNNER_TEMP/forge" -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON -DATTO_FORGE_SANITIZERS=ON
+          cmake --build "$RUNNER_TEMP/forge" --parallel 2 --target forge_scalar pointer_local_typed_test reusable_slot_verifier_test
+          ctest --test-dir "$RUNNER_TEMP/forge" --output-on-failure -R '^(pointer_local_typed_test|reusable_slot_verifier_test|pointer_local_native_guests)$'
+      - name: Verify source unchanged after tests
+        run: |
+          set -euo pipefail
+          test "$(git -C source rev-parse HEAD^{tree})" = "$SOURCE_TREE"
+          git -C source diff --exit-code HEAD --
+          echo "VERIFIED_AFTER_TEST=$SOURCE_HEAD"
