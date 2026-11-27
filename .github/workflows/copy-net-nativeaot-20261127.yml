@@ -1,0 +1,38 @@
+name: Current-main .NET NativeAOT copy qualification
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/copy-net-nativeaot-20261127.yml']
+permissions:
+  contents: read
+jobs:
+  native-net:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Verify exact public compiler source
+        run: |
+          set -euo pipefail
+          git init source
+          git -C source -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.net.git f28463386f575f2c7cf7fc00904e180c0489993c
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = f28463386f575f2c7cf7fc00904e180c0489993c
+          test "$(git -C source rev-parse HEAD^{tree})" = c99b2d7016f28b8035f2ad6fa968616a8e15716c
+          test "$(git -C source write-tree)" = c99b2d7016f28b8035f2ad6fa968616a8e15716c
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: '10.0.x'
+      - name: Native toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang zlib1g-dev binutils
+          dotnet --version
+      - name: Actual native compiler and guests plus denials
+        working-directory: source
+        run: bash ci/test-scalar-copy-nativeaot.sh
+      - name: Confirm source unchanged
+        if: always()
+        working-directory: source
+        run: |
+          git diff --exit-code HEAD
+          test "$(git write-tree)" = c99b2d7016f28b8035f2ad6fa968616a8e15716c

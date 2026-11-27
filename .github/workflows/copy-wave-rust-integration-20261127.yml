@@ -1,0 +1,66 @@
+name: Requalify Rust ready merge candidates after main advance
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/copy-wave-rust-integration-20261127.yml']
+permissions:
+  contents: read
+jobs:
+  integration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - pr: 760
+            head: a4157905d1b83b7ec21950741f35493896777125
+            tree: 6edaa5a921cb704945dcc4e12c6cc99e4f4e257f
+          - pr: 762
+            head: 8592d40c10742de87ea6a1542d038f927a515ea5
+            tree: fbc0bb39bdaea884ab2185d28b40444435a06d42
+          - pr: 695
+            head: 73a533b76768850ee21fe7c40fa44d43170099d2
+            tree: 18d8454897d3746179fdd4d139404f7d70775314
+          - pr: 725
+            head: e1b511289a4e552a2db2eda5459d397dac0fb24c
+            tree: 091925dcc1c4fb557f9a1a54886d50303285a255
+    steps:
+      - name: Exact public heads and local integration tree
+        env:
+          PIN: ${{ matrix.head }}
+          TREE: ${{ matrix.tree }}
+        run: |
+          set -euo pipefail
+          git init source
+          git -C source config user.name 'Integration qualification'
+          git -C source config user.email 'ci@example.invalid'
+          git -C source -c credential.helper= fetch --no-tags https://github.com/atto-lang/atto-source.rs.git bcefd05df4baad391d685d44cc1a43b031d4c2a7 8592d40c10742de87ea6a1542d038f927a515ea5 "$PIN"
+          test "$(git -C source rev-parse 8592d40c10742de87ea6a1542d038f927a515ea5^{tree})" = fbc0bb39bdaea884ab2185d28b40444435a06d42
+          test "$(git -C source rev-parse bcefd05df4baad391d685d44cc1a43b031d4c2a7^{tree})" = 907b9a7947a0182a9f1a9ce5dc23b178ca627e38
+          test "$(git -C source rev-parse "$PIN^{tree}")" = "$TREE"
+          git -C source checkout --detach bcefd05df4baad391d685d44cc1a43b031d4c2a7
+          git -C source merge --no-edit --no-ff 8592d40c10742de87ea6a1542d038f927a515ea5
+          git -C source merge --no-commit --no-ff "$PIN"
+          git -C source write-tree | tee "$RUNNER_TEMP/integration-tree"
+      - name: Match source-owned Rust toolchain
+        run: |
+          rustup toolchain install 1.85.1 --profile minimal
+          rustup component add clippy --toolchain 1.85.1
+          rustup default 1.85.1
+          rustc --version
+      - name: Full Rust regression and strict Clippy
+        working-directory: source
+        run: |
+          set -euo pipefail
+          cargo test --locked
+          cargo clippy --locked --all-targets -- -D warnings
+          cargo build --locked --bin attoc
+          node tests/copy_doublebang_guest.mjs
+      - name: Verify no tracked source change
+        if: always()
+        working-directory: source
+        run: |
+          set -euo pipefail
+          test "$(git write-tree)" = "$(cat "$RUNNER_TEMP/integration-tree")"
+          git diff --exit-code
