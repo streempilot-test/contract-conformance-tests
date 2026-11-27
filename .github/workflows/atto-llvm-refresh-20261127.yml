@@ -1,0 +1,38 @@
+name: LLVM current-main native conditional qualification
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/atto-llvm-refresh-20261127.yml']
+permissions:
+  contents: read
+jobs:
+  native:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Fetch exact public tree without credentials
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          mkdir source
+          git -C source init -q
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.llvm.git 318e095c4bc09c0fb6c0f24a35ff763898439856
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = 318e095c4bc09c0fb6c0f24a35ff763898439856
+          test "$(git -C source rev-parse 'HEAD^{tree}')" = af76a084215ad88ae7bbecb0a56276cbeec3620d
+          git -C source diff --quiet HEAD --
+          test -z "$(git -C source ls-files --others --exclude-standard)"
+          git -C source rev-parse HEAD 'HEAD^{tree}'
+      - name: Install LLVM native toolchain
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq llvm-18-dev clang-18 cmake ninja-build
+      - name: Build compiler and execute guest matrices
+        working-directory: source
+        run: |
+          set -euo pipefail
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DLLVM_DIR=/usr/lib/llvm-18/lib/cmake/llvm
+          cmake --build build --target oreslang-llvmc --parallel 2
+          python3 tests/value_elif_native_matrix.py --compiler "$PWD/build/oreslang-llvmc" --clang "$(command -v clang-18)"
+          python3 tests/ternary_native_matrix.py --compiler "$PWD/build/oreslang-llvmc" --clang "$(command -v clang-18)"
+          python3 tests/ternary_native_matrix.py --sanitize --compiler "$PWD/build/oreslang-llvmc" --clang "$(command -v clang-18)"
+          git diff --quiet HEAD --
+          echo LLVM_NATIVE_CONDITIONAL_MATRIX_PASS
