@@ -14,11 +14,11 @@ jobs:
         run: |
           set -euo pipefail
           git init compiler
-          git -C compiler -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.llvm.git 556b5e08946c77cee21db6ed13987ee0af437361
+          git -C compiler -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.llvm.git cf0b64e0e5aeb5089b6068904f917d2dfa2b006c
           git -C compiler checkout --detach FETCH_HEAD
-          test "$(git -C compiler rev-parse HEAD)" = 556b5e08946c77cee21db6ed13987ee0af437361
-          test "$(git -C compiler rev-parse HEAD^{tree})" = 7241b2d88f590eb598d9f7c367a7e9201b81e577
-          test "$(git -C compiler write-tree)" = 7241b2d88f590eb598d9f7c367a7e9201b81e577
+          test "$(git -C compiler rev-parse HEAD)" = cf0b64e0e5aeb5089b6068904f917d2dfa2b006c
+          test "$(git -C compiler rev-parse HEAD^{tree})" = 32cc4ba9e3872178f4cb1fa99caa136bccba42df
+          test "$(git -C compiler write-tree)" = 32cc4ba9e3872178f4cb1fa99caa136bccba42df
       - name: Build actual compiler and execute focused copy guests and regressions
         working-directory: compiler/frontend
         run: |
