@@ -1,0 +1,35 @@
+name: Atto exact reconciled NativeAOT graph host
+on:
+  pull_request:
+    branches: [main]
+permissions: {}
+jobs:
+  net-host:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Verify exact public source and three carried blobs
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          git init source
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.net.git f5b6ec45261f9be4ca99aacb865e80136d29552e
+          git -C source -c core.hooksPath=/dev/null checkout --detach FETCH_HEAD
+          cd source
+          test "$(git rev-parse HEAD)" = f5b6ec45261f9be4ca99aacb865e80136d29552e
+          test "$(git write-tree)" = "$(git rev-parse 'HEAD^{tree}')"
+          test -z "$(git status --porcelain --untracked-files=all)"
+          test "$(git hash-object verification/flat-machine-table-v1/FlatMachineTable.Host.csproj)" = 461ef8c5d427e91c3d14b881f1c2dbd225882840
+          test "$(git hash-object verification/flat-machine-table-v1/FlatMachineTable.cs)" = 60fae887dbfca1a9b9b275637af3155716892a75
+          test "$(git hash-object verification/flat-machine-table-v1/Program.cs)" = 3169cbe278bdf53aa69bcd102aa61aa0fe22586c
+          git rev-parse HEAD 'HEAD^{tree}'
+      - name: Build and execute native host
+        working-directory: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet --list-sdks
+          dotnet publish verification/flat-machine-table-v1/FlatMachineTable.Host.csproj -c Release -r linux-x64 -o /tmp/flat-machine-net
+          file /tmp/flat-machine-net/FlatMachineTable.Host
+          /tmp/flat-machine-net/FlatMachineTable.Host
