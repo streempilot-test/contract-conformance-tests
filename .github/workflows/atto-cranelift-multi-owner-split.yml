@@ -1,0 +1,34 @@
+name: Atto Cranelift multi-owner split verification
+on:
+  pull_request:
+    branches: [main]
+permissions: {}
+jobs:
+  cranelift:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Verify public source identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          git init atto-source.cranelift
+          git -C atto-source.cranelift -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.cranelift.git refs/heads/test/multi-owner-continuation-retirement-20261127
+          git -C atto-source.cranelift -c core.hooksPath=/dev/null checkout --detach FETCH_HEAD
+          test "$(git -C atto-source.cranelift rev-parse HEAD)" = 61b1a516267a235ca739c61543fe2dc3f22491f5
+          test "$(git -C atto-source.cranelift write-tree)" = "$(git -C atto-source.cranelift rev-parse 'HEAD^{tree}')"
+          test "$(git -C atto-source.cranelift hash-object src/select_continuation_fence.rs)" = a31d06df6f23e56f705e0dd0d1f6dd86f8d23153
+          git -C atto-source.cranelift rev-parse HEAD 'HEAD^{tree}'
+      - name: Execute host regression and compiler suite
+        working-directory: atto-source.cranelift
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustc --version
+          rustfmt --edition 2024 --check src/select_continuation_fence.rs
+          rustc --edition=2024 -D warnings --test -O src/select_continuation_fence.rs -o /tmp/cranelift-fence-tests
+          timeout 120s /tmp/cranelift-fence-tests --test-threads=1
+          cargo test --locked --release multi_owner_close_and_drop_wait_for_physical_unwind
+          cargo test --locked --all-targets
+          cargo clippy --locked --all-targets -- -D warnings
