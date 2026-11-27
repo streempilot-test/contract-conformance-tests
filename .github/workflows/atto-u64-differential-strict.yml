@@ -1,0 +1,70 @@
+name: Exact Atto unsigned differential conformance
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/atto-u64-differential-strict.yml']
+permissions:
+  contents: read
+jobs:
+  differential:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Fetch verified public exact trees
+        run: |
+          git init -q conformance
+          git -C conformance remote add origin https://github.com/atto-lang/atto-platform-conformance.git
+          git -C conformance fetch --no-tags --depth=1 origin d603b1c26b79ad6970a12c3808519467c87efcc8
+          git -C conformance checkout --detach FETCH_HEAD
+          test "$(git -C conformance rev-parse HEAD)" = d603b1c26b79ad6970a12c3808519467c87efcc8
+          test "$(git -C conformance rev-parse 'HEAD^{tree}')" = 6e70208e33b9caa66b1d4af3c604425324615769
+          git init -q js
+          git -C js remote add origin https://github.com/atto-lang/atto-source.js.git
+          git -C js fetch --no-tags --depth=1 origin 980e61cabdcb3aa883de35085f944f8018b10cd0
+          git -C js checkout --detach FETCH_HEAD
+          test "$(git -C js rev-parse HEAD)" = 980e61cabdcb3aa883de35085f944f8018b10cd0
+          test "$(git -C js rev-parse 'HEAD^{tree}')" = 1c33494eab4bb8412e7ec5a9215f25f103f298e0
+          git init -q llvm
+          git -C llvm remote add origin https://github.com/atto-lang/atto-source.llvm.git
+          git -C llvm fetch --no-tags --depth=1 origin c0b56b01eae6da0b7552aaf568a9812e14e6a7f8
+          git -C llvm checkout --detach FETCH_HEAD
+          test "$(git -C llvm rev-parse HEAD)" = c0b56b01eae6da0b7552aaf568a9812e14e6a7f8
+          test "$(git -C llvm rev-parse 'HEAD^{tree}')" = 2de583cff9d880e5e5429592666f0b4ec441e553
+          git init -q forge
+          git -C forge remote add origin https://github.com/atto-lang/atto-source.forge.git
+          git -C forge fetch --no-tags --depth=1 origin 528bc1c3baf21d2ddbb8a6ddac3ebdf5c9288466
+          git -C forge checkout --detach FETCH_HEAD
+          test "$(git -C forge rev-parse HEAD)" = 528bc1c3baf21d2ddbb8a6ddac3ebdf5c9288466
+          test "$(git -C forge rev-parse 'HEAD^{tree}')" = ec924e7c9b90d7a4e320a45b19ac657d27cf1dfc
+          git init -q java
+          git -C java remote add origin https://github.com/atto-lang/atto-source.java.git
+          git -C java fetch --no-tags --depth=1 origin 70ef727e711444ba31c95154d0133241f98ce775
+          git -C java checkout --detach FETCH_HEAD
+          test "$(git -C java rev-parse HEAD)" = 70ef727e711444ba31c95154d0133241f98ce775
+          test "$(git -C java rev-parse 'HEAD^{tree}')" = de3b0869e737d004acfe7aabb5b144dae8d97c92
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Verify tools and strict cross-compiler execution
+        working-directory: conformance
+        env:
+          ATTO_U64_CROSS_REQUIRED: '1'
+          ATTO_U64_JS_SOURCE: ${{ github.workspace }}/js/src/checked-u64-scalar-v1.mjs
+          ATTO_U64_LLVM_SOURCE: ${{ github.workspace }}/llvm/tools/atto_checked_u64.cpp
+          ATTO_U64_FORGE_SOURCE: ${{ github.workspace }}/forge/tools/forge_checked_u64.cpp
+          ATTO_U64_JAVA_SOURCE: ${{ github.workspace }}/java/tools/CheckedU64.java
+        run: |
+          ulimit -c 0
+          javac -version
+          clang++ --version
+          node --test tests/checked-u64-cross-candidates.test.mjs tests/fixed-width-integer-oracle.test.mjs tests/fixed-width-division-oracle.test.mjs tests/atto-xo-checked-u64-debit-v1.test.mjs
+      - name: Exact LLVM and Forge architecture matrices
+        working-directory: conformance
+        env:
+          ATTO_U64_TARGET_REQUIRED: '1'
+          ATTO_U64_FORGE_TARGET_REQUIRED: '1'
+          ATTO_U64_LLVM_SOURCE: ${{ github.workspace }}/llvm/tools/atto_checked_u64.cpp
+          ATTO_U64_FORGE_SOURCE: ${{ github.workspace }}/forge/tools/forge_checked_u64.cpp
+        run: |
+          ulimit -c 0
+          node --test tests/checked-u64-target-matrix.test.mjs tests/checked-u64-forge-target-matrix.test.mjs
