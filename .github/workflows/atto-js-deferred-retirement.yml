@@ -16,7 +16,7 @@ jobs:
           git init atto-source.js
           git -C atto-source.js -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.js.git refs/heads/feat/js-worker-control-loop-v1-20261121
           git -C atto-source.js -c core.hooksPath=/dev/null checkout --detach FETCH_HEAD
-          test "$(git -C atto-source.js rev-parse HEAD)" = 231a66b41c73e2e1409b983ae546391f9012a964
+          test "$(git -C atto-source.js rev-parse HEAD)" = b4fe2da5c30647861c96ed300a338d5e46ecc0d3
           test "$(git -C atto-source.js write-tree)" = "$(git -C atto-source.js rev-parse 'HEAD^{tree}')"
           test "$(git -C atto-source.js hash-object 'src/worker-control-loop.mjs')" = 8ad4144f6bc6542b566b9076f6b95b585726be4e
           test "$(git -C atto-source.js hash-object 'tests/worker-control-loop.test.mjs')" = b1776ecfa0553c0c46976290e362dd46b51c6b18
@@ -24,6 +24,7 @@ jobs:
           test "$(git -C atto-source.js hash-object 'src/portable-task-host-v4.mjs')" = 7611af63c3a3091128506bb274ea974991dc357b
           test "$(git -C atto-source.js hash-object 'src/portable-task-host-v5.mjs')" = dfb3de083443634045c1f2b90820e358b0e0b9db
           test "$(git -C atto-source.js hash-object 'src/worker-completion-capability-v1.mjs')" = 98d52999d27601c24a22e6a4a09a41ea5bc9c1f0
+          test "$(git -C atto-source.js hash-object tests/worker-completion-adversarial.test.mjs)" = ac6e2588fef4c9ce1654c7e50339eeb05e60bddc
           git -C atto-source.js diff --exit-code HEAD
           git -C atto-source.js rev-parse HEAD 'HEAD^{tree}'
       - uses: actions/setup-node@v4
