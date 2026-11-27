@@ -1,0 +1,43 @@
+name: Atto exact LLVM compiled guest toolchain retry
+on:
+  pull_request:
+    branches: [main]
+permissions: {}
+jobs:
+  llvm-guest:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Verify exact public source
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          git init atto-source.llvm
+          git -C atto-source.llvm -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.llvm.git 7d5088783f3392ff7dfac6144ee87e047192059d
+          git -C atto-source.llvm -c core.hooksPath=/dev/null checkout --detach FETCH_HEAD
+          test "$(git -C atto-source.llvm rev-parse HEAD)" = 7d5088783f3392ff7dfac6144ee87e047192059d
+          test "$(git -C atto-source.llvm write-tree)" = "$(git -C atto-source.llvm rev-parse 'HEAD^{tree}')"
+          test "$(git -C atto-source.llvm hash-object tests/source_actor_e2e.py)" = 28b9a65e2c25db53997935964ee3365a351574ff
+          test "$(git -C atto-source.llvm hash-object src/main/cpp/oreslang/runtime/SourceActorBootstrap.c)" = bd23226585e993255e24678f63bd9179397f5110
+          git -C atto-source.llvm diff --exit-code HEAD
+          git -C atto-source.llvm rev-parse HEAD 'HEAD^{tree}'
+      - name: Select LLVM 18 development toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v llvm-config-18 || ! command -v clang-18 || ! test -f "$(llvm-config-18 --cmakedir)/LLVMConfig.cmake"; then
+            sudo apt-get update
+            sudo apt-get install -y llvm-18-dev clang-18 libclang-rt-18-dev
+          fi
+          llvm-config-18 --version
+          clang-18 --version
+      - name: Build compiler and execute actual actor guests
+        shell: bash
+        working-directory: atto-source.llvm
+        run: |
+          set -euo pipefail
+          cmake -S . -B /tmp/atto-llvm-build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DLLVM_DIR="$(llvm-config-18 --cmakedir)"
+          cmake --build /tmp/atto-llvm-build --target oreslang-llvmc -j2
+          python3 tests/source_actor_e2e.py --compiler /tmp/atto-llvm-build/oreslang-llvmc --clang "$(command -v clang-18)" --root "$PWD"
+          python3 tests/source_actor_e2e.py --compiler /tmp/atto-llvm-build/oreslang-llvmc --clang "$(command -v clang-18)" --root "$PWD" --sanitize
