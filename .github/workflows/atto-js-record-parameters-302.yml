@@ -1,0 +1,30 @@
+name: Atto JS Record parameters 302 exact guest
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/atto-js-record-parameters-302.yml'
+permissions:
+  contents: read
+jobs:
+  js:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Pin public source and all changed blobs
+        run: |
+          set -eu
+          git init guest-source
+          cd guest-source
+          git -c credential.helper= fetch --depth=1 https://github.com/atto-lang/atto-source.js.git daff4367a9fcf640eea66b27674acaf68b0ed744
+          git checkout --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = daff4367a9fcf640eea66b27674acaf68b0ed744
+          git rev-parse HEAD^{tree}
+          test "$(git hash-object src/compiler.mjs)" = 7adf7bc1ad3398514d6190c861797326cfda70a0
+          test "$(git hash-object tests/fixtures/collection-subtypes-v1-candidate.json)" = 1cc0ae23fe56db7c3891d30881d28efa66619c21
+          test "$(git hash-object tests/nominal-record-method-parameters.test.mjs)" = b41accdc297bdc6849d81d1db9f15926018dda79
+      - name: Exact shared Record guests and method arguments
+        working-directory: guest-source
+        run: node --test tests/nominal-record-methods-scalar.test.mjs tests/nominal-record-method-parameters.test.mjs
+      - name: Full compiler regression
+        working-directory: guest-source
+        run: npm test
