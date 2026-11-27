@@ -15,10 +15,10 @@ jobs:
           set -euo pipefail
           git init -q source
           git -C source remote add origin https://github.com/atto-lang/atto-source.rs.git
-          git -C source fetch --no-tags --depth=1 origin 797ad8246f1d761809f2109276647ac7518b5d6b
+          git -C source fetch --no-tags --depth=1 origin 7bcb557a8441fe55f04e5d7327da6ad583e9d853
           git -C source checkout --detach FETCH_HEAD
-          test "$(git -C source rev-parse HEAD)" = 797ad8246f1d761809f2109276647ac7518b5d6b
-          test "$(git -C source rev-parse 'HEAD^{tree}')" = b0c070d25de7eefb541278f87b88d6466395e485
+          test "$(git -C source rev-parse HEAD)" = 7bcb557a8441fe55f04e5d7327da6ad583e9d853
+          test "$(git -C source rev-parse 'HEAD^{tree}')" = 33d22d47db92573b127aba178c316f23d050c935
           git -C source rev-parse HEAD 'HEAD^{tree}'
       - name: Install source-pinned compiler toolchain
         run: |
@@ -48,10 +48,10 @@ jobs:
           set -euo pipefail
           git init -q source
           git -C source remote add origin https://github.com/atto-lang/atto-source.llvm.git
-          git -C source fetch --no-tags --depth=1 origin d34724967b771d145d5a47e05e3fa90052585e92
+          git -C source fetch --no-tags --depth=1 origin 7905540dcc7a8326d8900356db7aa78f86ba8b9f
           git -C source checkout --detach FETCH_HEAD
-          test "$(git -C source rev-parse HEAD)" = d34724967b771d145d5a47e05e3fa90052585e92
-          test "$(git -C source rev-parse 'HEAD^{tree}')" = 05d1e75fb23e485bf4b48a4e9fb88cc7e2d59c43
+          test "$(git -C source rev-parse HEAD)" = 7905540dcc7a8326d8900356db7aa78f86ba8b9f
+          test "$(git -C source rev-parse 'HEAD^{tree}')" = 5dee4422e49d6102aead8566ee991cc3c732642a
           git -C source rev-parse HEAD 'HEAD^{tree}'
       - name: Install source-pinned native toolchain
         run: |
