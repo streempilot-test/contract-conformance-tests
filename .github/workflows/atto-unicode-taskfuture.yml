@@ -1,0 +1,53 @@
+name: Atto exact Unicode frontend and NativeAOT TaskFuture
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/atto-unicode-taskfuture.yml']
+permissions:
+  contents: read
+jobs:
+  forge:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Verify public exact source
+        run: |
+          git init -q source
+          git -C source remote add origin https://github.com/atto-lang/atto-source.forge.git
+          git -C source fetch --no-tags --depth=1 origin 4b75c2f8a9194344eec6a47eda56be1891d7dcb9
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = 4b75c2f8a9194344eec6a47eda56be1891d7dcb9
+          git -C source rev-parse 'HEAD^{tree}'
+      - name: Execute focused and broader compiler gates
+        working-directory: source
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build --parallel 2 && ctest --test-dir build --output-on-failure
+  cranelift:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Verify public exact source
+        run: |
+          git init -q source
+          git -C source remote add origin https://github.com/atto-lang/atto-source.cranelift.git
+          git -C source fetch --no-tags --depth=1 origin 525794234fc765a6ef41486002b77e98cd99619d
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = 525794234fc765a6ef41486002b77e98cd99619d
+          git -C source rev-parse 'HEAD^{tree}'
+      - name: Execute focused and broader compiler gates
+        working-directory: source
+        run: cargo test --locked --test unicode_strict_not_native -- --nocapture && cargo test --locked --all-targets --no-fail-fast && cargo fmt --all --check && cargo clippy --locked --all-targets -- -D warnings
+  net:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Verify public exact source
+        run: |
+          git init -q source
+          git -C source remote add origin https://github.com/atto-lang/atto-source.net.git
+          git -C source fetch --no-tags --depth=1 origin cbfffad8351b22b63529e2e61db8ac11042afac4
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = cbfffad8351b22b63529e2e61db8ac11042afac4
+          git -C source rev-parse 'HEAD^{tree}'
+      - name: Execute focused and broader compiler gates
+        working-directory: source
+        run: EXPECTED_HEAD=cbfffad8351b22b63529e2e61db8ac11042afac4 bash ci/test-closed-root-taskfuture-nativeaot.sh && dotnet run -c Release --project verification/Ores.Net.Tests/Ores.Net.Tests.csproj
