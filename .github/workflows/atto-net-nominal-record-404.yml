@@ -1,0 +1,31 @@
+name: Atto NET nominal Record 404 private metadata and NativeAOT
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/atto-net-nominal-record-404.yml'
+permissions:
+  contents: read
+jobs:
+  net:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Fetch public exact compiler and verify blobs
+        run: |
+          set -eu
+          git init guest-source
+          cd guest-source
+          git -c credential.helper= fetch --depth=1 https://github.com/atto-lang/atto-source.net.git 3193eca174d31bc973e9f27de57919e4dda79c55
+          git checkout --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = 3193eca174d31bc973e9f27de57919e4dda79c55
+          git rev-parse HEAD^{tree}
+          test "$(git hash-object compiler/Atto.Cil.Compiler/Program.cs)" = 9f09e6bcf1d202b25fca11ca153220b014ffc95c
+          test "$(git hash-object scripts/test-nominal-record-cil.sh)" = 33951b6db0e7c0fca401e29f69143002c57f8c06
+      - name: Execute Record guest, metadata and NativeAOT tests
+        working-directory: guest-source
+        env:
+          ATTO_RECORD_NATIVEAOT: '1'
+        run: bash scripts/test-nominal-record-cil.sh
+      - name: Full CoreCLR regression
+        working-directory: guest-source
+        run: dotnet run --project verification/Ores.Net.Tests/Ores.Net.Tests.csproj --configuration Release
