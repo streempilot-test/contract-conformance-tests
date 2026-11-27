@@ -20,8 +20,8 @@ jobs:
             tree: 44e16cd4f8c0c70ea7f877a72c2a482c12575562
           - backend: llvm
             repo: atto-lang/atto-source.llvm
-            head: 8982c835314f992989c80ebb93faf3df2c65dff7
-            tree: 02a118e9043fc303388324cfb401c3e5dfa2d373
+            head: 8f89fad96691e151f436765f336fe25c7717b379
+            tree: 3c51f98821e7604f79dc75460b50641ae069d38f
           - backend: wasm
             repo: atto-lang/atto-source.wasm
             head: a7fa282719a1d31932bf7c48a2852c6ce51ac378
