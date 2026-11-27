@@ -68,6 +68,23 @@ final class DelimitedMatchSubjectTest {
                 """, "42");
     }
 
+    @Test void statementDelimitersAllowNormalContinuation() throws Exception {
+        execute("""
+                pub routine main(): void {
+                    switch |7| over
+                        case 7 -> { stdio.stdout.write("S"); }
+                        default -> { stdio.stdout.write("bad"); }
+                    end;
+                    match |7| over
+                        on 7 -> { stdio.stdout.write("M"); }
+                        on _ -> { stdio.stdout.write("bad"); }
+                    end;
+                    stdio.stdout.write("42");
+                    return;
+                }
+                """, "SM42");
+    }
+
     @Test void rejectsMalformedHeadersWithoutChangingOrdinaryPipes() {
         for (String expression : new String[] {
             "match | | over on _ -> 42 end",

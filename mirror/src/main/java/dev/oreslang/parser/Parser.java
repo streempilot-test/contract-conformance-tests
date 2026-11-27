@@ -5935,6 +5935,7 @@ public final class Parser {
         // Canonical match is source-ordered. Legacy bare match retains the
         // old exclusivity/proof semantics unless explicitly written
         // `match first ...`.
+        if (delimited) match(SEMICOLON);
         return new Ast.MatchStmt(subject, canonicalOver || legacyFirst, arms, procedural);
     }
 
@@ -6506,6 +6507,7 @@ public final class Parser {
         }
 
         consume(END, "expected 'end' to close switch");
+        if (delimited) match(SEMICOLON);
         return new Ast.SwitchStmt(subject, cases, defaultBody);
     }
 
