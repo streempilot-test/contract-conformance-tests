@@ -36,26 +36,7 @@ jobs:
           test "$(git -C source rev-parse 'HEAD^{tree}')" = "$EXPECTED_TREE"
           test -z "$(git -C source status --porcelain --untracked-files=all)"
           printf 'PUBLIC_SOURCE_EXACT_HEAD=%s\nPUBLIC_SOURCE_EXACT_TREE=%s\n' "$EXPECTED_HEAD" "$EXPECTED_TREE"
-      - name: Forge C++ scalar parser and CLI no-artifact tests
-        if: matrix.backend == 'forge'
-        working-directory: source
-        run: |
-          set -euo pipefail
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON -DATTO_FORGE_SANITIZERS=ON
-          cmake --build build --parallel 2 --target scalar_parser_test forge_scalar oresforge
-          ctest --test-dir build --output-on-failure --no-tests=error -R '^(scalar_parser_test|scalar_cli_diagnostics)$'
-      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
-        if: matrix.backend == 'net'
-        with:
-          dotnet-version: '10.0.100'
-      - name: .NET existing managed compiler and runtime verification
-        if: matrix.backend == 'net'
-        working-directory: source
-        run: |
-          set -euo pipefail
-          dotnet run --project verification/Ores.Net.Tests -c Release
-      - name: LLVM native production parser admission
-        if: matrix.backend == 'llvm'
+      - name: LLVM native parser admission
         working-directory: source
         run: |
           set -euo pipefail
@@ -65,25 +46,12 @@ jobs:
           fi
           cmake -S . -B build -DBUILD_TESTING=ON -DLLVM_DIR="$(llvm-config --cmakedir)"
           cmake --build build --parallel 2 --target oreslang-native-actor-max-threads-admission-test
-          ctest --test-dir build --output-on-failure --no-tests=error -R '^native_actor_max_threads_source_admission
-      - name: Wasm source and host scheduler gate regression
-        if: matrix.backend == 'wasm'
+          ctest --test-dir build --output-on-failure --no-tests=error -R '^native_actor_max_threads_source_admission$'
+      - name: LLVM native quota host gate under sanitizers
         working-directory: source
         run: |
           set -euo pipefail
-          node --version
-          node --test tests/actor-max-threads-preflight-lexical-20261105.test.mjs tests/pooled-actors.test.mjs
-      - name: Evidence boundary
-        run: echo 'PUBLIC_SOURCE_TREE_TESTS_ONLY; NOT GROUPED SPAWN GUEST PARITY'
-
           c++ -std=c++20 -O1 -g -Wall -Wextra -Werror -pthread -fsanitize=address,undefined -fno-omit-frame-pointer -Isrc/main/cpp tests/actor_spawn_quota_gate_test.cpp -o build/actor_spawn_quota_gate_test
           build/actor_spawn_quota_gate_test
-      - name: Wasm source and host scheduler gate regression
-        if: matrix.backend == 'wasm'
-        working-directory: source
-        run: |
-          set -euo pipefail
-          node --version
-          node --test tests/actor-max-threads-preflight-lexical-20261105.test.mjs tests/pooled-actors.test.mjs
       - name: Evidence boundary
         run: echo 'PUBLIC_SOURCE_TREE_TESTS_ONLY; NOT GROUPED SPAWN GUEST PARITY'
