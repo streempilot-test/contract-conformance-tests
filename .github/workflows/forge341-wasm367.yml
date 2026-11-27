@@ -1,0 +1,53 @@
+name: Forge native conditional and delegated Wasm attached struct
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/forge341-wasm367.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  forge:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Exact public Forge head and real native guest
+        run: |
+          set -euo pipefail
+          git init src
+          git -C src -c credential.helper= -c http.extraHeader= fetch --depth=1 --no-tags https://github.com/atto-lang/atto-source.forge.git a7e77b0a74865a8cec3d8682ba8d643b6759be1f
+          git -C src checkout --detach FETCH_HEAD
+          test "$(git -C src rev-parse HEAD)" = a7e77b0a74865a8cec3d8682ba8d643b6759be1f
+          test "$(git -C src write-tree)" = 3431f723b0f556771f691b80a53b3553d4c6afd1
+          cd src
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+          cmake --build build --target oresforge --parallel 2
+          bash verification/scalar_early_return_native.sh "$(realpath build/oresforge)" c++
+          git diff --exit-code
+  wasm:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Authenticate all three public source inputs and execute real browser compiler targets
+        run: |
+          set -euo pipefail
+          exact() {
+            git init "$1"
+            git -C "$1" -c credential.helper= -c http.extraHeader= fetch --depth=1 --no-tags "https://github.com/atto-lang/$2.git" "$3"
+            git -C "$1" checkout --detach FETCH_HEAD
+            test "$(git -C "$1" rev-parse HEAD)" = "$3"
+            test "$(git -C "$1" write-tree)" = "$4"
+          }
+          exact src atto-source.wasm 2bca51fc3e9f7616c69f8035f798b89a7d845b91 7f97150eaf318f4211e28547cb11f0bf2ae8afae
+          exact compiler atto-source.rs c2ff8e8369e398eee018db1a1c1f45f27bcda428 910e12faf393e3503f5913cfb289066ffa7214c4
+          exact fixtures atto-platform-conformance c196a575dc5249f57c013013d384ad0b8b02309c bac51327d3fc9c53afd0c0bead885f3e9c5240ae
+          export ATTO_BROWSER_SOURCE_ROOT="$PWD/compiler" ATTO_STRUCT_FIXTURE_ROOT="$PWD/fixtures"
+          rustup toolchain install 1.85.1 --profile minimal --target wasm32-unknown-unknown
+          cd compiler
+          cargo +1.85.1 rustc --locked --release --lib --target wasm32-unknown-unknown --crate-type cdylib -- -C link-arg=--max-memory=67108864
+          export ATTO_BROWSER_COMPILER="$(find "$PWD/target/wasm32-unknown-unknown/release" -maxdepth 1 -name '*.wasm' -type f | head -1)"
+          test -s "$ATTO_BROWSER_COMPILER"
+          export ATTO_BROWSER_COMPILER_SHA256="$(sha256sum "$ATTO_BROWSER_COMPILER" | cut -d' ' -f1)"
+          cd ../src
+          npm run test:attached-struct-browser
+          git diff --exit-code
