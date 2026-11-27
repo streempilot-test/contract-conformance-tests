@@ -1,0 +1,131 @@
+name: Atto public exact-tree Java Net Wasm JS guest qualification
+on:
+  push:
+    branches: ['ci/atto-java-net-wasm-js-parity-20261126']
+permissions: {}
+jobs:
+  capacity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Source-free capacity
+        run: |
+          set -eu
+          node -e 'require("node:assert/strict").equal(6*7,42)'
+          echo SOURCE_FREE_CAPACITY_PASS
+  qualify:
+    needs: capacity
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - repo: atto-source.java
+            head: cbb4283b53c570df3c59ab7f5eb7aa10358f53c1
+            tree: eb84938d97444cdb6da1d5e7ebcecfeb53331d47
+            mode: java
+          - repo: atto-source.net
+            head: e3cd9df855d2a6525f8dc98bad79a71aa212c9c2
+            tree: 01a1131ae5f2f122a3bfeb48759ecf8e333f0020
+            mode: net
+          - repo: atto-source.wasm
+            head: 143c58e685e2c9e5e6cfacb5d41af2151c9b6c51
+            tree: 203d3f4a70641c0b9ce5df92fd353e4d940edeec
+            mode: wasm
+          - repo: atto-source.js
+            head: 9925750caa21faa9d3bf91b30a1918f95ba639aa
+            tree: 2b015615423b31026df526948b20ea73f8cac096
+            mode: js
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Verify public Git trees before compilation
+        env:
+          REPO: ${{ matrix.repo }}
+          HEAD_SHA: ${{ matrix.head }}
+          TREE_SHA: ${{ matrix.tree }}
+          GIT_TERMINAL_PROMPT: '0'
+          GIT_CONFIG_NOSYSTEM: '1'
+          GIT_CONFIG_GLOBAL: /dev/null
+        shell: bash
+        run: |
+          set -euo pipefail
+          fetch_exact() {
+            local repo="$1" sha="$2" tree="$3" dir="$4"
+            git init "$dir"
+            git -C "$dir" -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 "https://github.com/atto-lang/$repo.git" "$sha"
+            git -C "$dir" checkout --detach FETCH_HEAD
+            test "$(git -C "$dir" rev-parse HEAD)" = "$sha"
+            test "$(git -C "$dir" rev-parse HEAD^{tree})" = "$tree"
+            git -C "$dir" fsck --full --strict
+            git -C "$dir" ls-tree -r HEAD | awk '$1 != "100644" && $1 != "100755" {bad=1} END{exit bad}'
+            test -z "$(git -C "$dir" status --porcelain)"
+            echo "EXACT_SOURCE $repo $sha $tree"
+          }
+          fetch_exact "$REPO" "$HEAD_SHA" "$TREE_SHA" source
+          if [[ "$REPO" == atto-source.wasm ]]; then
+            fetch_exact atto-source.llvm 96fe5ee218d4e9bc10a386e3d54f1c475c44d32f 3d01d03d8dd4ebeb0a9e05a7f18511f173234bb8 llvm-source
+          fi
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        if: matrix.mode == 'java'
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        if: matrix.mode == 'net'
+        with:
+          dotnet-version: '10.0.x'
+      - name: Run real compiler regressions and guests
+        working-directory: source
+        env:
+          MODE: ${{ matrix.mode }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$MODE" in
+            java)
+              java -version
+              mvn -B -ntp -Dtest=AttoScalarV1GuestTest,AttoDemoMultifileSevenCaseGuestTest -DfailIfNoTests=true clean test
+              grep -E 'tests=|failures=' target/surefire-reports/TEST-dev.oreslang.Atto*GuestTest.xml | cut -c1-500
+              ;;
+            net)
+              sudo apt-get update
+              sudo apt-get install -y clang zlib1g-dev binutils jq
+              test "$(git hash-object --no-filters contracts/atto-parity-v1/add.atto)" = 015f8b0f79aafa796a148d2adeff1574e8d6c491
+              test "$(git hash-object --no-filters contracts/atto-parity-v1/reject-unknown.atto)" = 1c3ff45f58168c3f992c3666b7e216112b5fd64c
+              bash scripts/publish-linux.sh contracts/atto-parity-v1/add.atto artifacts/atto-scalar
+              app=artifacts/atto-scalar/linux-x64/oreslang-app
+              compiler=artifacts/compiler/linux-x64/oresnet
+              test -x "$app" && test -x "$compiler"
+              test "$("$app")" = 42
+              mkdir -p artifacts/negative
+              if "$compiler" compile contracts/atto-parity-v1/reject-unknown.atto --out artifacts/negative/OresGenerated.dll >artifacts/negative/stdout 2>artifacts/negative/stderr; then exit 1; fi
+              test ! -e artifacts/negative/OresGenerated.dll
+              test ! -s artifacts/negative/stdout
+              grep -Eiq 'undefined|unknown|undeclared|unbound|identifier' artifacts/negative/stderr
+              sha256sum "$compiler" "$app"
+              echo NET_NATIVEAOT_GUEST_AND_NEGATIVE_PASS
+              ;;
+            wasm)
+              sudo apt-get update
+              sudo apt-get install -y build-essential cmake clang lld llvm-dev
+              cmake -S ../llvm-source -B ../llvm-build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
+              cmake --build ../llvm-build --target oreslang-llvmc --parallel 2
+              export ORESLANG_LLVM_COMPILER="$(realpath ../llvm-build/oreslang-llvmc)"
+              export ORESLANG_LLVM_COMPILER_SHA256="$(sha256sum "$ORESLANG_LLVM_COMPILER" | cut -d' ' -f1)"
+              export ORESLANG_LLVM_SOURCE_SHA=96fe5ee218d4e9bc10a386e3d54f1c475c44d32f
+              echo 'EXPLORATORY CURRENT PUBLIC LLVM PAIR; NOT legacy private pinned certification'
+              npm test
+              npm run test:real-compiler
+              ;;
+            js)
+              node --version
+              npm test
+              npm run check
+              npm run test:atto-canonical
+              npm run parity:js
+              npm run parity:numeric-js
+              export CHROME_BIN="$(command -v google-chrome || command -v chromium)"
+              npm run test:browser
+              ;;
+            *) exit 65;;
+          esac
