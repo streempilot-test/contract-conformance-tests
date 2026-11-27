@@ -1,8 +1,8 @@
-name: Shared Unicode native Forge and Cranelift full corpus
+name: Cranelift unbound diagnostic and full corpus audit
 on:
   push:
-    branches: [ci/native-unicode-forge-cranelift-20261127]
-    paths: [.github/workflows/native-unicode-forge-cranelift.yml]
+    branches: [ci/cranelift-unbound-current-20261127]
+    paths: [.github/workflows/cranelift-unbound-current.yml]
 permissions: {}
 jobs:
   native:
@@ -12,14 +12,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - profile: forge
-            repo: atto-source.forge
-            head: b9dd6e6e6dc0ba6f5d3042eaad5375e5482ab465
-            tree: bce7ee20d40062b7c91182a56718d339cb98622b
           - profile: cranelift
             repo: atto-source.cranelift
-            head: 0e5fee30c35351edc44fe08bd0ce32b19ccf68a4
-            tree: 00b579895125107b0ff69c70a7150d14c90ee759
+            head: 3107b30a8603b0fca931f179f96227aa887508a8
+            tree: 3dc96fc99477d54d5c6a7702217ff1fe13d1d95c
     env:
       PROFILE: ${{ matrix.profile }}
       SOURCE_REPO: ${{ matrix.repo }}
@@ -54,6 +50,7 @@ jobs:
             cd "$RUNNER_TEMP/source"
             cargo +1.99.1 clippy --locked --all-targets -- -D warnings
             cargo +1.99.1 build --locked --release --bin orescranelift
+            cargo +1.99.1 test --locked --test unbound_unicode_native -- --nocapture
             cargo +1.99.1 test --locked --test ownership_bang_admission
             cargo +1.99.1 test --locked
             compiler="$CARGO_TARGET_DIR/release/orescranelift"
