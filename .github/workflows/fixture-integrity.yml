@@ -1,7 +1,7 @@
 name: Atto conformance 633 exact host verification
 on:
   push:
-    branches: [ci/atto-conformance633-integrity-20261127]
+    branches: [ci/atto-conformance633-reconciled-20261127]
   pull_request:
 permissions:
   contents: read
@@ -16,10 +16,10 @@ jobs:
       - name: Fetch and verify exact public source tree
         run: |
           git init source
-          git -C source fetch --depth=1 https://github.com/atto-lang/atto-platform-conformance.git f06c6bebcc7bf5b8c0456dfcb84e1dcb129dc2bc
+          git -C source fetch --depth=1 https://github.com/atto-lang/atto-platform-conformance.git 6cd1cf81d9eb403399a6db535f376f5f3491ed4a
           git -C source checkout --detach FETCH_HEAD
-          test "$(git -C source rev-parse HEAD)" = f06c6bebcc7bf5b8c0456dfcb84e1dcb129dc2bc
-          test "$(git -C source rev-parse HEAD^{tree})" = e25841317f773963fae2a5fc98f54f61d7213e9e
+          test "$(git -C source rev-parse HEAD)" = 6cd1cf81d9eb403399a6db535f376f5f3491ed4a
+          test "$(git -C source rev-parse HEAD^{tree})" = 864dfaf66f71ce525154be1f31fd028ab60fba94
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '22'
