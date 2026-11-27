@@ -1,0 +1,49 @@
+name: Current native Unicode shared corpus audit
+on:
+  pull_request:
+    branches: ['main']
+permissions: {}
+jobs:
+  native:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - backend: forge
+            head: 3179befbe867bd71622f3b7f25e832304bfb16b2
+            tree: d07a20294aeed6e0d81108599bf971730c32a7ba
+    steps:
+      - name: Verify exact public compiler and common corpus
+        env:
+          BACKEND: ${{ matrix.backend }}
+          SOURCE: ${{ matrix.head }}
+          TREE: ${{ matrix.tree }}
+        run: |
+          set -euo pipefail
+          fetch_exact() {
+            git init "$1"
+            git -C "$1" -c credential.helper= fetch --no-tags --depth=1 "$2" "$3"
+            git -C "$1" checkout --detach FETCH_HEAD
+            test "$(git -C "$1" rev-parse HEAD)" = "$3"
+            test "$(git -C "$1" write-tree)" = "$4"
+            test -z "$(git -C "$1" status --porcelain --untracked-files=all)"
+          }
+          fetch_exact source "https://github.com/atto-lang/atto-source.$BACKEND.git" "$SOURCE" "$TREE"
+          fetch_exact common https://github.com/atto-lang/atto-common-source.git 64b590fbd024f66f1e8471dec2a7d3bba88eaab3 4f1a69d5dbac93afcf38731bda28824ab11cc943
+          node --test common/tests/native-compiler-result-v1.test.mjs
+      - name: Forge native guest pipeline and shared corpus
+        run: |
+          set -euo pipefail
+          cmake -S source -B "$RUNNER_TEMP/forge" -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+          cmake --build "$RUNNER_TEMP/forge" --target forge_scalar scalar_lexer_test scalar_parser_test scalar_eval_test --parallel 2
+          ctest --test-dir "$RUNNER_TEMP/forge" --output-on-failure --no-tests=error -R '^(scalar_(lexer|parser|eval)_test|scalar_guest_pipeline)$'
+          node common/scripts/run-unicode-native-scalar-conformance-v1.mjs forge source 3179befbe867bd71622f3b7f25e832304bfb16b2 d07a20294aeed6e0d81108599bf971730c32a7ba "$RUNNER_TEMP/forge/forge_scalar"
+      - name: Recheck source and corpus
+        if: always()
+        run: |
+          git -C source diff --exit-code
+          test "$(git -C source write-tree)" = d07a20294aeed6e0d81108599bf971730c32a7ba
+          git -C common diff --exit-code
+          test "$(git -C common write-tree)" = 4f1a69d5dbac93afcf38731bda28824ab11cc943
