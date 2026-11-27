@@ -1,0 +1,38 @@
+name: Atto Java current-main runtime lifecycle
+on:
+  pull_request:
+    branches: [main]
+permissions: {}
+jobs:
+  java:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Integrate exact public source parents
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          git init atto-source.java
+          cd atto-source.java
+          git -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=100 https://github.com/atto-lang/atto-source.java.git 4f71562eae8ac3d7c03a938c3978d4c7b82e9562 b0afbe59e7a5e2b3b75838dd1cf03b89acdaf59a
+          git -c core.hooksPath=/dev/null checkout --detach 4f71562eae8ac3d7c03a938c3978d4c7b82e9562
+          test "$(git merge-base HEAD b0afbe59e7a5e2b3b75838dd1cf03b89acdaf59a)" = b2eeac182d97899260a1a609f246ee68b68eb5db
+          git config user.name 'Atto local integration probe'
+          git config user.email 'integration@example.invalid'
+          git -c core.hooksPath=/dev/null merge --no-commit --no-ff b0afbe59e7a5e2b3b75838dd1cf03b89acdaf59a
+          test "$(git hash-object src/main/java/dev/oreslang/runtime/ActorContinuationLedger.java)" = 2df2c570b295cbf6f532e7ba2c7a30e48ffd5f73
+          test "$(git hash-object src/test/java/dev/oreslang/runtime/ActorContinuationLedgerTest.java)" = 21393f60ea168c6fccf4b5e233a1c728b1de81fc
+          test "$(git hash-object src/test/java/dev/oreslang/ActorRuntimeTest.java)" = f5049269f6f3f24be6cca9c10cad1362420042cf
+          grep -F 'if (!continuationLedger.retirementReady())' src/main/java/dev/oreslang/runtime/ActorRuntime.java
+          echo "MERGED_TREE=$(git write-tree)"
+          git diff --cached --raw --no-abbrev HEAD
+      - name: Execute actual ActorRuntime and ledger integration
+        shell: bash
+        working-directory: atto-source.java
+        run: |
+          set -euo pipefail
+          export JAVA_HOME="$JAVA_HOME_21_X64"
+          export PATH="$JAVA_HOME/bin:$PATH"
+          java -version
+          mvn -B -ntp -Dtest=ActorRuntimeTest,ActorContinuationLedgerTest test
