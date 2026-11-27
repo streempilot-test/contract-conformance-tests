@@ -32,7 +32,6 @@ jobs:
       SOURCE_HEAD: ${{ matrix.head }}
       SOURCE_TREE: ${{ matrix.tree }}
       GIT_TERMINAL_PROMPT: '0'
-      CARGO_TARGET_DIR: ${{ runner.temp }}/atto-target
     steps:
       - name: Fetch public source without credentials and bind exact tree
         shell: bash
@@ -46,6 +45,7 @@ jobs:
           test "$(git -C source rev-parse HEAD^{tree})" = "$SOURCE_TREE"
           git -C source diff --exit-code HEAD --
           git -C source fsck --full --no-reflogs
+          echo "CARGO_TARGET_DIR=$RUNNER_TEMP/atto-target" >> "$GITHUB_ENV"
           echo "EXACT_SOURCE=$SOURCE_HEAD TREE=$SOURCE_TREE"
       - name: Execute LLVM repository Rust-hosted frontend and native placement guest
         if: matrix.backend == 'llvm'
