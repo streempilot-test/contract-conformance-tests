@@ -1,0 +1,92 @@
+name: Current native Unicode shared corpus audit
+on:
+  pull_request:
+    branches: ['main']
+permissions: {}
+jobs:
+  native:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - backend: forge
+            head: 3179befbe867bd71622f3b7f25e832304bfb16b2
+            tree: d07a20294aeed6e0d81108599bf971730c32a7ba
+    steps:
+      - name: Verify exact public compiler and common corpus
+        env:
+          BACKEND: ${{ matrix.backend }}
+          SOURCE: ${{ matrix.head }}
+          TREE: ${{ matrix.tree }}
+        run: |
+          set -euo pipefail
+          fetch_exact() {
+            git init "$1"
+            git -C "$1" -c credential.helper= fetch --no-tags --depth=1 "$2" "$3"
+            git -C "$1" checkout --detach FETCH_HEAD
+            test "$(git -C "$1" rev-parse HEAD)" = "$3"
+            test "$(git -C "$1" write-tree)" = "$4"
+            test -z "$(git -C "$1" status --porcelain --untracked-files=all)"
+          }
+          fetch_exact source "https://github.com/atto-lang/atto-source.$BACKEND.git" "$SOURCE" "$TREE"
+          fetch_exact common https://github.com/atto-lang/atto-common-source.git 37a0cbb3619832c5b21113c7bd7350e468043ade 962bbe80ad645c78e8d68ea007f9d4bd8d626cd3
+          node --test common/tests/native-compiler-result-v1.test.mjs
+      - name: Forge ordinary compiler native guest execution
+        if: matrix.backend == 'forge'
+        run: |
+          cmake -S source -B "$RUNNER_TEMP/forge" -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+          cmake --build "$RUNNER_TEMP/forge" --target forge_scalar scalar_lexer_test scalar_parser_test scalar_eval_test --parallel 2
+          ctest --test-dir "$RUNNER_TEMP/forge" --output-on-failure --no-tests=error -R '^scalar_(lexer|parser|eval)_test$|^scalar_guest_pipeline
+          node common/scripts/run-unicode-native-scalar-conformance-v1.mjs forge source 3179befbe867bd71622f3b7f25e832304bfb16b2 d07a20294aeed6e0d81108599bf971730c32a7ba "$RUNNER_TEMP/forge/forge_scalar"
+      - name: Cranelift ordinary native object execution
+        if: matrix.backend == 'cranelift'
+        run: |
+          cargo build --locked --manifest-path source/Cargo.toml --bin orescranelift --target-dir "$RUNNER_TEMP/cranelift"
+          node common/scripts/run-unicode-native-scalar-conformance-v1.mjs cranelift source d24b1a52cf2eabf91b2905a95db7a5b3910c01de d648f1e60e9e1ba1e3495e03a81fb554f0f08e59 "$RUNNER_TEMP/cranelift/debug/orescranelift"
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        if: matrix.backend == 'net'
+        with:
+          dotnet-version: '10.0.x'
+      - name: NET NativeAOT against hardened shared corpus
+        if: matrix.backend == 'net'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends clang zlib1g-dev binutils file
+          node source/verification/run-unicode-shared-nativeaot-v1.mjs source e3cd9df855d2a6525f8dc98bad79a71aa212c9c2 01a1131ae5f2f122a3bfeb48759ecf8e333f0020 common/contracts/conformance/unicode-identifiers-negation-v1.json
+      - name: Recheck source and corpus
+        if: always()
+        env:
+          TREE: ${{ matrix.tree }}
+        run: |
+          git -C source diff --exit-code
+          test "$(git -C source write-tree)" = "$TREE"
+          git -C common diff --exit-code
+          test "$(git -C common write-tree)" = 962bbe80ad645c78e8d68ea007f9d4bd8d626cd3
+
+          node common/scripts/run-unicode-native-scalar-conformance-v1.mjs forge source 3179befbe867bd71622f3b7f25e832304bfb16b2 d07a20294aeed6e0d81108599bf971730c32a7ba "$RUNNER_TEMP/forge/forge_scalar"
+      - name: Cranelift ordinary native object execution
+        if: matrix.backend == 'cranelift'
+        run: |
+          cargo build --locked --manifest-path source/Cargo.toml --bin orescranelift --target-dir "$RUNNER_TEMP/cranelift"
+          node common/scripts/run-unicode-native-scalar-conformance-v1.mjs cranelift source d24b1a52cf2eabf91b2905a95db7a5b3910c01de d648f1e60e9e1ba1e3495e03a81fb554f0f08e59 "$RUNNER_TEMP/cranelift/debug/orescranelift"
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        if: matrix.backend == 'net'
+        with:
+          dotnet-version: '10.0.x'
+      - name: NET NativeAOT against hardened shared corpus
+        if: matrix.backend == 'net'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends clang zlib1g-dev binutils file
+          node source/verification/run-unicode-shared-nativeaot-v1.mjs source e3cd9df855d2a6525f8dc98bad79a71aa212c9c2 01a1131ae5f2f122a3bfeb48759ecf8e333f0020 common/contracts/conformance/unicode-identifiers-negation-v1.json
+      - name: Recheck source and corpus
+        if: always()
+        env:
+          TREE: ${{ matrix.tree }}
+        run: |
+          git -C source diff --exit-code
+          test "$(git -C source write-tree)" = "$TREE"
+          git -C common diff --exit-code
+          test "$(git -C common write-tree)" = 962bbe80ad645c78e8d68ea007f9d4bd8d626cd3
