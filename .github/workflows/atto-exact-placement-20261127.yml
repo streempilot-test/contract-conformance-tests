@@ -11,14 +11,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - backend: llvm
-            pr: 1083
-            head: 9e00fd1bef60cea77d17f2efb5c7cfcd5a5afbdb
-            tree: aac0e4df2192ad07995e9bca12c7cd80913fe54a
           - backend: cranelift
-            pr: 226
-            head: 6ecc99b8282e589e263b8a3d5880e8620fff6633
-            tree: 5255df4bad93b93eb32bbfab00c290f882c1c6b4
+            pr: 230
+            head: db462ad670904572e7a31546471f081b94d4b529
+            tree: b2f9431d1187b1ecb373d67f91a0866b9c03b98b
     env:
       BACKEND: ${{ matrix.backend }}
       SOURCE_HEAD: ${{ matrix.head }}
