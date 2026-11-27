@@ -35,6 +35,12 @@ jobs:
           git -C source checkout --detach bcefd05df4baad391d685d44cc1a43b031d4c2a7
           git -C source merge --no-commit --no-ff "$PIN"
           git -C source write-tree | tee "$RUNNER_TEMP/integration-tree"
+      - name: Match source-owned Rust toolchain
+        run: |
+          rustup toolchain install 1.85.1 --profile minimal
+          rustup component add clippy --toolchain 1.85.1
+          rustup default 1.85.1
+          rustc --version
       - name: Full Rust regression and strict Clippy
         working-directory: source
         run: |
