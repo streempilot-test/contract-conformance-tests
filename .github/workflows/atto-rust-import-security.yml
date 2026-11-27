@@ -1,0 +1,41 @@
+name: Exact native and browser Rust constant import security
+on:
+  push:
+    branches: ['ci/atto-rust719-root-import-20261127']
+permissions: {}
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GIT_TERMINAL_PROMPT: '0'
+      GIT_CONFIG_NOSYSTEM: '1'
+      GIT_CONFIG_GLOBAL: /dev/null
+    steps:
+      - name: Verify exact public tree
+        run: |
+          set -euo pipefail
+          git init source
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.rs.git 6960ba21efa9f85f4083fc4f778ed2bb478d65f3
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = 6960ba21efa9f85f4083fc4f778ed2bb478d65f3
+          test "$(git -C source rev-parse HEAD^{tree})" = a00649ba9eaff0d943149a87bacd2f31377e038c
+          git -C source fsck --full --strict
+          git -C source ls-tree -r HEAD | awk '$1 != "100644" && $1 != "100755" {bad=1} END{exit bad}'
+          test -z "$(git -C source status --porcelain)"
+      - name: Build and execute real native and browser compiler guests
+        working-directory: source
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.85.1 --profile minimal --target wasm32-unknown-unknown
+          rustup default 1.85.1
+          unset RUST_MIN_STACK
+          cargo test --locked --no-fail-fast
+          cargo build --locked --release --bin attoc
+          export ATTOC=target/release/attoc
+          node tests/constant_import_guest.mjs
+          cargo rustc --locked --release --lib --target wasm32-unknown-unknown --crate-type cdylib -- -C link-arg=--max-memory=67108864
+          sha256sum target/wasm32-unknown-unknown/release/atto_compiler.wasm
+          node tests/conformance.mjs
+          export CHROME_BIN="$(command -v google-chrome || command -v chromium)"
+          node tests/browser-e2e.mjs
