@@ -13,8 +13,8 @@ jobs:
         include:
           - backend: cranelift
             pr: 229
-            head: 4471e34cf792822df83ec263fc63cc43bbdd4ca1
-            tree: 863c85c7a3a5e88f9e77b447343b58f2ea0b7630
+            head: 3eecc91d06caa5b8f34cef89afc5ae072b752bea
+            tree: aea7d0bb55ca0bd9d5f1b99bd6e342e129a755ad
     env:
       BACKEND: ${{ matrix.backend }}
       SOURCE_HEAD: ${{ matrix.head }}
