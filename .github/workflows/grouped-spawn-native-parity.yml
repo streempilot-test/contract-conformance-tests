@@ -10,10 +10,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - backend: net
-            repo: atto-lang/atto-source.net
-            head: 662a638bc360aa60e813eee563fbf8f572fececd
-            tree: cb21727b6e58b94fa0db8d7020d27849acf46925
+          - backend: llvm
+            repo: atto-lang/atto-source.llvm
+            head: d4a8bc1732514a8de827d0a203246ca1df20c52c
+            tree: b8373937a18e5faf33d3deadb8d1564fd46a3403
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:
@@ -65,7 +65,19 @@ jobs:
           fi
           cmake -S . -B build -DBUILD_TESTING=ON -DLLVM_DIR="$(llvm-config --cmakedir)"
           cmake --build build --parallel 2 --target oreslang-native-actor-max-threads-admission-test
-          ctest --test-dir build --output-on-failure --no-tests=error -R '^native_actor_max_threads_source_admission$'
+          ctest --test-dir build --output-on-failure --no-tests=error -R '^native_actor_max_threads_source_admission
+      - name: Wasm source and host scheduler gate regression
+        if: matrix.backend == 'wasm'
+        working-directory: source
+        run: |
+          set -euo pipefail
+          node --version
+          node --test tests/actor-max-threads-preflight-lexical-20261105.test.mjs tests/pooled-actors.test.mjs
+      - name: Evidence boundary
+        run: echo 'PUBLIC_SOURCE_TREE_TESTS_ONLY; NOT GROUPED SPAWN GUEST PARITY'
+
+          c++ -std=c++20 -O1 -g -Wall -Wextra -Werror -pthread -fsanitize=address,undefined -fno-omit-frame-pointer -Isrc/main/cpp tests/actor_spawn_quota_gate_test.cpp -o build/actor_spawn_quota_gate_test
+          build/actor_spawn_quota_gate_test
       - name: Wasm source and host scheduler gate regression
         if: matrix.backend == 'wasm'
         working-directory: source
