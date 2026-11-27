@@ -13,6 +13,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - pr: 760
+            head: f6b1c89fd3f4ea4f07b8a44ed15829e6d7379594
+            tree: c55d40876a27267b0a0d653eb4c7a7d65b9b793f
           - pr: 762
             head: 8592d40c10742de87ea6a1542d038f927a515ea5
             tree: fbc0bb39bdaea884ab2185d28b40444435a06d42
