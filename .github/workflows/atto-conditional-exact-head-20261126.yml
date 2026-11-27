@@ -15,24 +15,28 @@ jobs:
         include:
           - lane: rust
             repo: atto-source.rs
-            head: 5c9d94c92dcdebb8189251a18fbb7e20b5b9a578
-            tree: d40b47149d987e3d682e2aebdb5ba2f29d2e2ee5
+            head: 8f39b13f2002dc5483f93ce95711043d0db500dc
+            tree: 727047200a724854fab5a6cf38680c67e0b085e6
           - lane: js
             repo: atto-source.js
-            head: 6b0834ba5c95b3c6ff63095c632833b77e70545e
-            tree: 26b22db52f21255e2d859163f72796d4c1d3eabb
+            head: b7432b81cfc646615cf3ae0034703649b3d318df
+            tree: 5d9ce12250e0f53da31f2827c7a513c13ebbf63a
           - lane: formatter
             repo: atto-format
-            head: 8680290bbba4aeb33c42bca161b5110eb4616820
-            tree: a9f3d89a510859431ca748cb8b0947942d83195b
+            head: 80d450a52a09b2e731eb85d4fe7faa1040685fd4
+            tree: c9825fa36c3afcacdcbadff4b2443144cda19067
           - lane: clippy
             repo: atto-source.rs
-            head: b789ff3b56565a0f4c6c37a7a1e7957c4e518922
-            tree: 12906c138aee61839e08d08ffd5f524605b9b701
+            head: 818db8621425af970f4e668da7ce9d8cfacd200c
+            tree: ff1e6456f4ece0646675f63a775d50d7c9117f59
           - lane: js-u64
             repo: atto-source.js
             head: a44f3ea6a397d6db99babd0aebdd018842b9f93a
             tree: 680899ffe367b9bed6d8b530b144e654498f5938
+          - lane: spec
+            repo: atto-spec
+            head: aae2f21d934b743f7f24dac2933046d8711b4a03
+            tree: 7fb3cba28efb8e8069afb44ffe19537a07ebc0fe
     steps:
       - name: Fetch only public exact Git source with no credentials
         env:
@@ -43,7 +47,7 @@ jobs:
         run: |
           set -euo pipefail
           [[ "$SOURCE_HEAD" =~ ^[a-f0-9]{40}$ && "$SOURCE_TREE" =~ ^[a-f0-9]{40}$ ]]
-          [[ "$SOURCE_REPO" =~ ^atto-(source\.(rs|js)|format)$ ]]
+          [[ "$SOURCE_REPO" =~ ^atto-(source\.(rs|js)|format|spec)$ ]]
           export GIT_TERMINAL_PROMPT=0
           export GIT_CONFIG_NOSYSTEM=1
           export GIT_CONFIG_GLOBAL=/dev/null
@@ -98,6 +102,10 @@ jobs:
               cargo test --locked --test keyword_guard_regressions
               cargo test --locked
               node --test tests/*.test.mjs
+              ;;
+            spec)
+              node --check tests/conditional-expression-v2-contract.test.mjs
+              node --test tests/conditional-expression-v2-contract.test.mjs
               ;;
             *) exit 1 ;;
           esac
