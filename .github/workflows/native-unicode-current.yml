@@ -1,7 +1,7 @@
 name: Current native Unicode shared corpus audit
 on:
   pull_request:
-    branches: ['ci/**']
+    branches: ['main']
 permissions: {}
 jobs:
   native:
