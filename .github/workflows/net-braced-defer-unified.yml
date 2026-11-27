@@ -1,0 +1,37 @@
+name: .NET unified lexical cleanup actual guests
+on:
+  push:
+    branches: [ci/net-braced-defer-unified-7c128da-20261127]
+    paths: [.github/workflows/net-braced-defer-unified.yml]
+permissions: {}
+jobs:
+  guest:
+    strategy:
+      fail-fast: false
+      matrix:
+        backend: [coreclr, nativeaot]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Verify exact public source and current-base ancestry
+        run: |
+          set -euo pipefail
+          git init -q source
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags https://github.com/atto-lang/atto-source.net.git a4a558d6c021146dbd904893842ff426415c9a19 7c128da203a6e55f5383057698e0aec5e9034132
+          git -C source checkout --detach 7c128da203a6e55f5383057698e0aec5e9034132
+          test "$(git -C source rev-parse 'HEAD^{tree}')" = 1ca4d124b77ae17ca1c106232c2a32620d9637b2
+          git -C source merge-base --is-ancestor a4a558d6c021146dbd904893842ff426415c9a19 HEAD
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: '10.0.x'
+      - name: Execute actual compiled lexical cleanup guests and no-artifact denials
+        working-directory: source
+        env:
+          BACKEND: ${{ matrix.backend }}
+        run: |
+          set -euo pipefail
+          bash ci/test-trapped-inline-lexical-writeback.sh "$BACKEND" | tee "$RUNNER_TEMP/guests.log"
+          test "$(grep -c "^PASS $BACKEND lexical trap guest " "$RUNNER_TEMP/guests.log")" = 21
+          test "$(grep -c '^PASS no-artifact ' "$RUNNER_TEMP/guests.log")" = 13
+          test "$(git rev-parse 'HEAD^{tree}')" = 1ca4d124b77ae17ca1c106232c2a32620d9637b2
+          git diff --exit-code HEAD --
