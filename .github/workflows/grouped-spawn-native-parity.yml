@@ -10,10 +10,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - backend: llvm
-            repo: atto-lang/atto-source.llvm
-            head: 017274765984c547c03dad87c6c72c43b21e16c5
-            tree: 2f4f77c8e6b1c8d6224bf48153ddd8bec71ace04
+          - backend: net
+            repo: atto-lang/atto-source.net
+            head: 662a638bc360aa60e813eee563fbf8f572fececd
+            tree: cb21727b6e58b94fa0db8d7020d27849acf46925
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:
