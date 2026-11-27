@@ -1,0 +1,31 @@
+name: Exact public return-position state loop guest gate
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/return-state-loop.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  rust:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Authenticate exact source
+        run: |
+          set -euo pipefail
+          git init src
+          git -C src -c credential.helper= -c http.extraHeader= fetch --depth=1 --no-tags https://github.com/atto-lang/atto-source.rs.git ffccc67f07b6d7f459347b0bef60621edafbfab6
+          git -C src checkout --detach FETCH_HEAD
+          test "$(git -C src rev-parse HEAD)" = ffccc67f07b6d7f459347b0bef60621edafbfab6
+          test "$(git -C src rev-parse HEAD^{tree})" = 373aca7234a690b420772ddc9b26b5378f1a59c1
+          test "$(git -C src write-tree)" = 373aca7234a690b420772ddc9b26b5378f1a59c1
+      - name: Build both real compiler hosts and execute full conformance
+        run: |
+          set -euo pipefail
+          cd src
+          rustup toolchain install 1.85.1 --profile minimal --target wasm32-unknown-unknown
+          cargo +1.85.1 build --locked --release --bin attoc
+          cargo +1.85.1 rustc --locked --release --lib --target wasm32-unknown-unknown --crate-type cdylib -- -C link-arg=--max-memory=67108864
+          ATTOC=target/release/attoc node tests/conformance.mjs
+          git diff --exit-code
