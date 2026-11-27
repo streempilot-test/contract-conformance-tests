@@ -9,8 +9,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     env:
-      SOURCE_HEAD: 054e1839e2efb85357714dc2a40faf39e64401b3
-      SOURCE_TREE: 6af736e5d57b0e960c8133717dd2a57e2ed64903
+      SOURCE_HEAD: 1bd401dae243a454c7d8140f2e7f7c35242e718a
+      SOURCE_TREE: 5ef40c23eed5708206e47268ee57fd1232dd03e7
       GIT_TERMINAL_PROMPT: '0'
     steps:
       - name: Fetch exact public source
