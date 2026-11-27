@@ -14,6 +14,10 @@ jobs:
             repo: atto-lang/atto-source.llvm
             head: 81ebc13c6a9137dbeaf6398cbfdedd82944fd3e1
             tree: 4276280041407d6ace18656a09dcfb0f66a1ceb8
+          - backend: wasm
+            repo: atto-lang/atto-source.wasm
+            head: e0e3659cb4b6681d21999441f87171644cbcbe54
+            tree: c2a7f1a13e14b4358b25326f6e0f1628ff2f6be2
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:
@@ -37,6 +41,7 @@ jobs:
           test -z "$(git -C source status --porcelain --untracked-files=all)"
           printf 'PUBLIC_SOURCE_EXACT_HEAD=%s\nPUBLIC_SOURCE_EXACT_TREE=%s\n' "$EXPECTED_HEAD" "$EXPECTED_TREE"
       - name: LLVM native parser admission
+        if: matrix.backend == 'llvm'
         working-directory: source
         run: |
           set -euo pipefail
@@ -48,10 +53,17 @@ jobs:
           cmake --build build --parallel 2 --target oreslang-native-actor-max-threads-admission-test
           ctest --test-dir build --output-on-failure --no-tests=error -R '^native_actor_max_threads_source_admission$'
       - name: LLVM native quota host gate under sanitizers
+        if: matrix.backend == 'llvm'
         working-directory: source
         run: |
           set -euo pipefail
           c++ -std=c++20 -O1 -g -Wall -Wextra -Werror -pthread -fsanitize=address,undefined -fno-omit-frame-pointer -Isrc/main/cpp tests/actor_spawn_quota_gate_test.cpp -o build/actor_spawn_quota_gate_test
           build/actor_spawn_quota_gate_test
+      - name: Wasm source and single-worker quota host regression
+        if: matrix.backend == 'wasm'
+        working-directory: source
+        run: |
+          set -euo pipefail
+          node --test tests/actor-max-threads-preflight-lexical-20261105.test.mjs tests/pooled-actors.test.mjs tests/actor-spawn-quota-gate.test.mjs
       - name: Evidence boundary
         run: echo 'PUBLIC_SOURCE_TREE_TESTS_ONLY; NOT GROUPED SPAWN GUEST PARITY'
