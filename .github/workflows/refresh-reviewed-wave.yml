@@ -1,8 +1,8 @@
-name: Atto five-backend pinned current-main integration gate
+name: Atto refreshed four-backend integration gate
 on:
   push:
-    branches: [ci/merge-wave-current-integration-20261127]
-    paths: [.github/workflows/merge-wave-integration.yml]
+    branches: [ci/refresh-reviewed-compiler-wave-20261127]
+    paths: [.github/workflows/refresh-reviewed-wave.yml]
 permissions:
   contents: read
 jobs:
@@ -14,38 +14,31 @@ jobs:
           - lane: 'rust'
             repo: 'atto-source.rs'
             pr: '723'
-            base: '0fe8364a3921fe4c0fd8a5edc14466e9bbbf9610'
-            baseTree: '64fe8bbc65c4a7171c4dc35520ff21656b8e9711'
-            head: 'faa51a6e4e15166a3de59ae44d536ef11aaf0af3'
-            tree: 'ed3d5739352d1b993ba920d171e66aa8a01e907b'
-          - lane: 'js'
-            repo: 'atto-source.js'
-            pr: '249'
-            base: '8165a630205f411d04e3d6794a75f658cf8bb649'
-            baseTree: '7fc114644fc74b110b1fad9541d3d57144498d8a'
-            head: '53c43038664bfdc81b7873008b0d134773069919'
-            tree: '61379f606a37142ce9f76aa9c5f7cb4327c961ee'
-          - lane: 'net'
-            repo: 'atto-source.net'
-            pr: '359'
-            base: 'ad487d8aa05fa74ead285636c5bbdd0a9b604eb0'
-            baseTree: '9082a6193744865dbb4d9cde77ed89ad84c3ea65'
-            head: 'd3ccd5928c2572bd56307792c78e16a1c14bfca8'
-            tree: '5ee27d77e2b6e6e7b7e128240b6198fdf6d0e15a'
+            base: 'fa1308ca2df6eaf8926f5eea57591e269076c48e'
+            baseTree: 'd6747480a0b5c46217535613326e2ae18d821090'
+            head: '0106a2d8b05afd0b5a4ce87338d17df3acefa729'
+            tree: 'a00df83ef8ffddd4c66bd5847310e127a64e4716'
           - lane: 'java'
             repo: 'atto-source.java'
             pr: '2027'
-            base: 'd1755b98211a715f929b5cfff203daf41a506f29'
-            baseTree: '9faf545bb07ba76d7a37b0e109b72390002679ec'
-            head: '0e764031aa2c51fe24dcb0ecaef1e12c35ca5cfa'
-            tree: '10568a36a7634150b975604a8782753156e4d2b9'
-          - lane: 'llvm'
-            repo: 'atto-source.llvm'
-            pr: '1048'
-            base: 'c449cd5445d50d4bf3b136b6018593cd602f1c37'
-            baseTree: '0148375ddb42aa1103ca19f562440a95ceb2b2e7'
-            head: 'dfa5cf6e139e652ad8eadef2142d520c88756762'
-            tree: 'c785e964eeca8ce9440589fad9aeff14923fdbef'
+            base: 'c1d3c08594ce9b709d365eb9852fc6c1b0da1893'
+            baseTree: 'bcf7bbbbf489670118fe8d996ba66246e711da3f'
+            head: '95a927323243701386ccd3eab869912db2a1b255'
+            tree: '4954b199288330508b408ed96a99f938e1ed1abf'
+          - lane: 'js'
+            repo: 'atto-source.js'
+            pr: '249'
+            base: '452a2f8b2cf639c3a96d6cb7d3f50037665cc3d7'
+            baseTree: 'e1daf64356d798138d956a5366ae4700131ca343'
+            head: '431880c24aca9926b07441d694b55d7c786f528d'
+            tree: '3cbd3aeacae7fc0dc296f52239078d6aeacc0105'
+          - lane: 'net'
+            repo: 'atto-source.net'
+            pr: '359'
+            base: 'cdf519109127f86c643095d6802f7f914c8e03af'
+            baseTree: '573c732d335a3e37a3b9a7d336f246e8c52c0184'
+            head: 'd3ccd5928c2572bd56307792c78e16a1c14bfca8'
+            tree: '5ee27d77e2b6e6e7b7e128240b6198fdf6d0e15a'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
@@ -133,7 +126,7 @@ jobs:
         working-directory: source
         run: |
           set -euo pipefail
-          mvn -B -ntp '-P!native-thread-unix' -Dtest=CanonicalSixConditionalMainTest,CanonicalConditionalJoinCurrentMainTest -Dsurefire.failIfNoSpecifiedTests=true clean test
+          mvn -B -ntp '-P!native-thread-unix' -Dtest=CanonicalSixConditionalMainTest,CanonicalConditionalJoinCurrentMainTest -Dsurefire.failIfNoSpecifiedTests=true test
           report=target/surefire-reports/TEST-dev.oreslang.CanonicalSixConditionalMainTest.xml
           test -s "$report"
           grep -Eq '<testsuite[^>]*tests="[1-9][0-9]*"' "$report"
