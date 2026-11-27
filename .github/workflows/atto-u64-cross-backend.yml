@@ -14,10 +14,10 @@ jobs:
         run: |
           git init -q source
           git -C source remote add origin https://github.com/atto-lang/atto-source.llvm.git
-          git -C source fetch --no-tags --depth=1 origin a733339c135b9796098fe4717d3d4ba41ac7762f
+          git -C source fetch --no-tags --depth=1 origin ae208c824713a55cbe864bd5169931ef871ff7da
           git -C source checkout --detach FETCH_HEAD
-          test "$(git -C source rev-parse HEAD)" = a733339c135b9796098fe4717d3d4ba41ac7762f
-          test "$(git -C source rev-parse 'HEAD^{tree}')" = 69be0c1e8c4a9ebe9e979ba23791e48d87c045bd
+          test "$(git -C source rev-parse HEAD)" = ae208c824713a55cbe864bd5169931ef871ff7da
+          test "$(git -C source rev-parse 'HEAD^{tree}')" = 179ca554706fa8f3ca1b40a9ff0f223cca4bed17
           test "$(git -C source hash-object contracts/atto-xo-checked-u64-debit-v1/cases.tsv)" = 2d41ae576d049ed3a8898c3deacc8d30c705dce8
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
@@ -31,50 +31,60 @@ jobs:
         run: |
           cargo test --manifest-path frontend/Cargo.toml --locked --all-targets --no-fail-fast
           sudo apt-get update -qq && sudo apt-get install -y llvm-18-dev clang-18 lld-18
-          cmake -S . -B "$RUNNER_TEMP/llvm-build" -DLLVM_DIR="$(llvm-config-18 --cmakedir)" -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+          CC=clang-18 CXX=clang++-18 cmake -S . -B "$RUNNER_TEMP/llvm-build" -DLLVM_DIR="$(llvm-config-18 --cmakedir)" -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
           cmake --build "$RUNNER_TEMP/llvm-build" --parallel 2
           ctest --test-dir "$RUNNER_TEMP/llvm-build" --output-on-failure
-  cranelift:
+  wasm:
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 20
     steps:
       - name: Verify exact public source
         run: |
           git init -q source
-          git -C source remote add origin https://github.com/atto-lang/atto-source.cranelift.git
-          git -C source fetch --no-tags --depth=1 origin 13f6765227bc730e628ed407bee49a645e5b7d21
+          git -C source remote add origin https://github.com/atto-lang/atto-source.wasm.git
+          git -C source fetch --no-tags --depth=1 origin 78e7b9f94225fb82e47ae315297a98b2ae6ee13b
           git -C source checkout --detach FETCH_HEAD
-          test "$(git -C source rev-parse HEAD)" = 13f6765227bc730e628ed407bee49a645e5b7d21
-          test "$(git -C source rev-parse 'HEAD^{tree}')" = d8fa32ba6c15bf1ffb402548afca50d6a17c6767
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
-        with:
-          node-version: '22'
-      - name: Actual focused guest or native object execution
-        working-directory: source
-        run: cargo test --locked --test checked_u64_aot -- --nocapture
-      - name: Full backend regression
-        if: always()
-        working-directory: source
-        run: cargo test --locked --all-targets --no-fail-fast && cargo fmt --all --check && cargo clippy --locked --all-targets -- -D warnings
-  rs:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 25
-    steps:
-      - name: Verify exact public source
-        run: |
-          git init -q source
-          git -C source remote add origin https://github.com/atto-lang/atto-source.rs.git
-          git -C source fetch --no-tags --depth=1 origin 8058124d385e930a39255146ecc346c19d4d4077
-          git -C source checkout --detach FETCH_HEAD
-          test "$(git -C source rev-parse HEAD)" = 8058124d385e930a39255146ecc346c19d4d4077
+          test "$(git -C source rev-parse HEAD)" = 78e7b9f94225fb82e47ae315297a98b2ae6ee13b
           git -C source rev-parse 'HEAD^{tree}'
+          git init -q llvm
+          git -C llvm remote add origin https://github.com/atto-lang/atto-source.llvm.git
+          git -C llvm fetch --no-tags --depth=1 origin ae208c824713a55cbe864bd5169931ef871ff7da
+          git -C llvm checkout --detach FETCH_HEAD
+          test "$(git -C llvm rev-parse HEAD)" = ae208c824713a55cbe864bd5169931ef871ff7da
+          test "$(git -C llvm hash-object tools/atto_checked_u64.cpp)" = 752d1ad3fb3564eed9067a0a530eb2150d1c14b4
+          test "$(git -C source hash-object contracts/atto-xo-checked-u64-debit-v1/cases.tsv)" = 2d41ae576d049ed3a8898c3deacc8d30c705dce8
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '22'
-      - name: Actual focused guest or native object execution
+      - name: Required exact delegated guest execution
         working-directory: source
-        run: cargo build --locked --bin attoc && node tests/callable_guest_execution.mjs && cargo test --locked --test source_callable_types --test direct_lambda
-      - name: Full backend regression
+        run: ATTO_U64_WASM_REQUIRED=1 ATTO_U64_LLVM_SOURCE="$GITHUB_WORKSPACE/llvm/tools/atto_checked_u64.cpp" node --test tests/atto-xo-checked-u64-wasm.test.mjs tests/checked-u64-generated-wasm.test.mjs
+      - name: Complete Node regression
         if: always()
         working-directory: source
-        run: cargo test --locked --all-targets --no-fail-fast
+        run: npm test
+  hdl:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Verify exact reconciled source
+        run: |
+          git init -q source
+          git -C source remote add origin https://github.com/atto-lang/atto-source.hdl.git
+          git -C source fetch --no-tags --depth=1 origin a5c4180bea6c6417bb93cb8907634d2ea9e6a495
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = a5c4180bea6c6417bb93cb8907634d2ea9e6a495
+          test "$(git -C source rev-parse 'HEAD^{tree}')" = 10936964d926c408193939cc4c6f83776e6ae80c
+          test "$(git -C source hash-object tests/checked-signed-rtl-physical.mjs)" = b5cc97638ee5bd1ab6ccdfba9b34e3c9e8908670
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Install RTL tools
+        run: sudo apt-get update -qq && sudo apt-get install -y iverilog yosys
+      - name: Signed checked arithmetic RTL and netlist execution
+        working-directory: source
+        run: node tests/checked-signed-rtl-physical.mjs
+      - name: Complete HDL regression
+        if: always()
+        working-directory: source
+        run: node --test tests/*.test.mjs
