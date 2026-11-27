@@ -1,0 +1,54 @@
+name: Atto persistent control probe script qualification
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/atto-persistent-control-probes-20261127.yml']
+permissions:
+  contents: read
+jobs:
+  host:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - backend: java
+            head: dce605ea05febd6b9228fc85d7617aa9a65d36e5
+            script: verification/control-plane-arena-v1/run-host-probe.sh
+          - backend: net
+            head: 0b00725958de65096216e36147a5d3e73426fc3f
+            script: verification/Ores.Net.ControlPlaneArenaProbe/run-host-probe.sh
+    steps:
+      - name: Fetch exact public head and verify Git identity
+        shell: bash
+        env:
+          BACKEND: ${{ matrix.backend }}
+          HEAD_SHA: ${{ matrix.head }}
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= fetch --no-tags --depth=1 "https://github.com/atto-lang/atto-source.$BACKEND.git" "$HEAD_SHA"
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = "$HEAD_SHA"
+          git -C source rev-parse HEAD^{tree}
+      - uses: actions/setup-java@v4
+        if: matrix.backend == 'java'
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: actions/setup-dotnet@v4
+        if: matrix.backend == 'net'
+        with:
+          dotnet-version: '10.0.x'
+      - name: Execute exact committed source workflow entry point
+        shell: bash
+        env:
+          SCRIPT: ${{ matrix.script }}
+        run: |
+          set -euo pipefail
+          cd source
+          bash -n "$SCRIPT"
+          bash "$SCRIPT"
+          git diff --exit-code
