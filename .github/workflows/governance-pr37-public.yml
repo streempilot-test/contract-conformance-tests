@@ -1,0 +1,82 @@
+name: Public governance PR37 exact-head and proposed integration
+on:
+  push:
+    branches: [ci/atto-governance-pr37-20261126]
+permissions: {}
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [head, integration]
+    env:
+      HEAD_SHA: 4ee90a4c502e8fc2585a988a30cd317b4391615b
+      HEAD_TREE: f3ba2570f684218ea4703de407ceb523c6dd828a
+      BASE_SHA: 6007eff51be14da716e839c8552dae381d9081a5
+      BASE_TREE: 5ee63a15eb0baa64c6763b6f3ad5437f00eda8a9
+      GIT_TERMINAL_PROMPT: "0"
+      GIT_CONFIG_NOSYSTEM: "1"
+      GIT_CONFIG_GLOBAL: /dev/null
+    steps:
+      - name: Fetch publicly readable immutable revisions without credentials
+        env:
+          MODE: ${{ matrix.mode }}
+        run: |
+          set -euo pipefail
+          git init source
+          cd source
+          git -c credential.helper= -c http.extraHeader= fetch --no-tags https://github.com/atto-lang/.github.git "$HEAD_SHA" "$BASE_SHA"
+          test "$(git rev-parse "$HEAD_SHA^{tree}")" = "$HEAD_TREE"
+          test "$(git rev-parse "$BASE_SHA^{tree}")" = "$BASE_TREE"
+          git config user.email ci@example.invalid
+          git config user.name "Local CI"
+          if [[ "$MODE" == integration ]]; then
+            git checkout --detach "$BASE_SHA"
+            git -c core.hooksPath=/dev/null merge --no-ff --no-edit "$HEAD_SHA"
+            test "$(git rev-parse HEAD^1)" = "$BASE_SHA"
+            test "$(git rev-parse HEAD^2)" = "$HEAD_SHA"
+          else
+            git checkout --detach "$HEAD_SHA"
+          fi
+          test -z "$(git status --porcelain)"
+          echo "MODE=$MODE HEAD=$HEAD_SHA BASE=$BASE_SHA TEST_TREE=$(git rev-parse HEAD^{tree})"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          check-latest: false
+      - name: Offline verifier and all present governance regressions
+        working-directory: source
+        run: |
+          set -euo pipefail
+          node --version
+          node --test tests/verify-merge-receipt.test.mjs tests/strict-receipt-json-v1.test.mjs
+          set +e
+          node tools/verify-merge-receipt.mjs >/dev/null
+          code=$?
+          set -e
+          test "$code" -eq 2
+          shopt -s nullglob
+          tests=(tests/*.test.mjs governance/*.test.mjs)
+          node --test "${tests[@]}"
+      - name: Rust policy tests
+        working-directory: source
+        run: |
+          set -euo pipefail
+          rustc --version
+          rustc --edition=2021 -D warnings --test tools/check_no_python.rs -o /tmp/check-no-python-tests
+          /tmp/check-no-python-tests
+          rustc --edition=2021 -D warnings tools/check_no_python.rs -o /tmp/check-no-python
+          /tmp/check-no-python .
+          if test -f tools/sync-gh-org-tests/Cargo.toml; then cargo test --manifest-path tools/sync-gh-org-tests/Cargo.toml --all-targets; fi
+          rustc --edition=2021 -D warnings --test tools/check_oreslang_ownership.rs -o /tmp/ownership-test
+          /tmp/ownership-test
+          rustc --edition=2021 -D warnings tools/check_oreslang_ownership.rs -o /tmp/ownership-check
+          /tmp/ownership-check .
+          if test -f scripts/pointerless_ownership_guard.rs; then
+            rustc --edition=2021 -D warnings --test scripts/pointerless_ownership_guard.rs -o /tmp/legacy-ownership-tests
+            /tmp/legacy-ownership-tests
+          fi
+      - name: Evidence boundary
+        run: echo 'EXTERNAL_PUBLIC_TESTS_ONLY; NO MERGE OR RELEASE AUTHORIZATION'
