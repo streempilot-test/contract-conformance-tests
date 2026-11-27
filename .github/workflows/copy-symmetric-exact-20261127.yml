@@ -1,0 +1,89 @@
+name: Exact copy mode compiler and conformance gates
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/copy-symmetric-exact-20261127.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  java:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Fetch public source without credentials and pin entire tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          git init source
+          git -C source -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.java.git 57b8e6ab5630ba16e09ec781f2f331e81c76dfde
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = 57b8e6ab5630ba16e09ec781f2f331e81c76dfde
+          test "$(git -C source rev-parse HEAD^{tree})" = f060f4566292e073b20d5af2a1b57956bffb4267
+          test "$(git -C source write-tree)" = f060f4566292e073b20d5af2a1b57956bffb4267
+          git -C source log -1 --format='%H %T'
+      - uses: graalvm/setup-graalvm@27b360dbb857524eaf0b4c4cef364d38e5b4f173
+        with:
+          version: '25.3'
+          java-version: '25'
+          distribution: graalvm
+      - name: Execute strict Java component and race tests
+        working-directory: source
+        run: |
+          set -euo pipefail
+          javac -Xlint:all -Werror -d "$RUNNER_TEMP/snapshot" src/main/java/dev/oreslang/types/GuestClassSlots.java src/main/java/dev/oreslang/types/CopyScalarAdmission.java tests/graph-topology-host/ShallowSnapshotHarness.java
+          java -Xss256k -cp "$RUNNER_TEMP/snapshot" ShallowSnapshotHarness
+      - name: Compile production code and execute targeted JUnit guest and ownership regressions
+        working-directory: source
+        run: |
+          set -euo pipefail
+          mvn -B -ntp -Dtest=DerivedCopyPlanGuestTest,CopyPolicyCompilerTest,OwnershipAndClosureTest,DerivedGraphCopyPlanTest,GraphCopyTransactionTest,CopyPlanCacheTest,GuestClassGraphLeaseTest -DfailIfNoTests=true -Dsurefire.failIfNoSpecifiedTests=true test
+  rust:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Fetch public source without credentials and pin entire tree
+        run: |
+          set -euo pipefail
+          git init source
+          git -C source -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.rs.git 5f9ae93a10aa18afe5d0d6c308abd5936cb546e4
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = 5f9ae93a10aa18afe5d0d6c308abd5936cb546e4
+          test "$(git -C source rev-parse HEAD^{tree})" = dfe2f6c6c2623480617e69424b1b4074867b5ace
+          test "$(git -C source write-tree)" = dfe2f6c6c2623480617e69424b1b4074867b5ace
+          git -C source log -1 --format='%H %T'
+      - name: Execute Rust copy witness and compiler regression tests
+        working-directory: source
+        run: |
+          set -euo pipefail
+          rustc --version
+          node --version
+          cargo test --locked --test copy_doublebang --test copy_graph_v1 --test layout_trace --test unary_plus_parity --test aosoa_checked_addressing
+          cargo build --locked --bin attoc
+          node tests/copy_doublebang_guest.mjs
+      - name: Check real AOT browser compiler build
+        working-directory: source
+        run: |
+          set -euo pipefail
+          rustup target add wasm32-unknown-unknown
+          cargo build --locked --release --target wasm32-unknown-unknown --lib
+  corpus:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Fetch public conformance tree without credentials
+        run: |
+          set -euo pipefail
+          git init source
+          git -C source -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-platform-conformance.git 29fe5a71f546b4d7d94877d1ed6db57068240767
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = 29fe5a71f546b4d7d94877d1ed6db57068240767
+          test "$(git -C source rev-parse HEAD^{tree})" = b1a1cb50d678b7a1cee9c3b1bddca302daffe810
+          test "$(git -C source write-tree)" = b1a1cb50d678b7a1cee9c3b1bddca302daffe810
+          git -C source log -1 --format='%H %T'
+      - name: Execute registry tests only, no guest parity claim
+        working-directory: source
+        run: |
+          set -euo pipefail
+          node --test tests/copy-readonly-sharing-v1.test.mjs
+          echo SCOPE=HOST_FIXTURE_INTEGRITY_ONLY
