@@ -1,0 +1,51 @@
+name: Atto exact JS active quantum retirement
+on:
+  pull_request:
+    branches: [main]
+permissions: {}
+jobs:
+  js-quantum:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Verify exact public source or two-blob reconstruction
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          git init atto-source.js
+          if git -C atto-source.js -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.js.git refs/heads/feat/js-worker-control-loop-v1-20261121 && test "$(git -C atto-source.js rev-parse FETCH_HEAD)" = eea7e87ddc60e682244e06eeeb297725db0ab162; then
+            git -C atto-source.js -c core.hooksPath=/dev/null checkout --detach FETCH_HEAD
+            test "$(git -C atto-source.js write-tree)" = "$(git -C atto-source.js rev-parse 'HEAD^{tree}')"
+            echo SOURCE_IDENTITY=exact-commit
+          else
+            git -C atto-source.js -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.js.git bffe9b767d9abf51e8d409d1494add207e1be89e
+            git -C atto-source.js -c core.hooksPath=/dev/null checkout --detach FETCH_HEAD
+            test "$(git -C atto-source.js rev-parse HEAD)" = bffe9b767d9abf51e8d409d1494add207e1be89e
+            git -C atto-source.js diff --exit-code HEAD
+            git init overlay
+            git -C overlay -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/streempilot-test/contract-conformance-tests.git refs/heads/ci/atto-js-active-quantum-20261127
+            git -C overlay -c core.hooksPath=/dev/null checkout --detach FETCH_HEAD
+            cp overlay/public-source-overlay/src/worker-control-loop.mjs atto-source.js/src/worker-control-loop.mjs
+            cp overlay/public-source-overlay/tests/worker-control-loop.test.mjs atto-source.js/tests/worker-control-loop.test.mjs
+            test "$(git -C atto-source.js diff --name-only HEAD | LC_ALL=C sort)" = "$(printf '%s\n' src/worker-control-loop.mjs tests/worker-control-loop.test.mjs | LC_ALL=C sort)"
+            git -C atto-source.js add -u
+            echo SOURCE_IDENTITY=reconstructed-base-plus-two-verified-blobs
+          fi
+          test "$(git -C atto-source.js hash-object src/worker-control-loop.mjs)" = 189f778351075f76b8ed7e38ad709bbf11b813c1
+          test "$(git -C atto-source.js hash-object tests/worker-control-loop.test.mjs)" = 70067cfa2c61ac44b75e418af78c0c7b425b82ff
+          test "$(git -C atto-source.js hash-object src/select-continuation-fence.mjs)" = 14275f151261829d9cf50d2443ac46e2a8297b44
+          git -C atto-source.js rev-parse HEAD
+          git -C atto-source.js write-tree
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run focused and Worker integration tests
+        shell: bash
+        working-directory: atto-source.js
+        run: |
+          set -euo pipefail
+          node --version
+          node --test tests/worker-control-loop.test.mjs
+          npm run test:workers
+          node --test tests/actor-future-host-v1.test.mjs tests/task-future-host-v1.test.mjs tests/portable-task-host-v3.test.mjs tests/portable-task-host-v4.test.mjs tests/portable-task-host-v5.test.mjs tests/worker-completion-adversarial.test.mjs tests/worker-completion-capability-v1.test.mjs
