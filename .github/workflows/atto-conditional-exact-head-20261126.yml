@@ -23,8 +23,8 @@ jobs:
             tree: 5d9ce12250e0f53da31f2827c7a513c13ebbf63a
           - lane: formatter
             repo: atto-format
-            head: 80d450a52a09b2e731eb85d4fe7faa1040685fd4
-            tree: c9825fa36c3afcacdcbadff4b2443144cda19067
+            head: efd8740ba0fe68038296db940f03d5b9f088b003
+            tree: b9206da81990da7a19602e22e6481cea1bcd43c9
           - lane: clippy
             repo: atto-source.rs
             head: 786791987e06652dbb737d3a05142151d022b3cb
@@ -111,7 +111,7 @@ jobs:
               npm run check
               ;;
             formatter)
-              cargo test --locked --test keyword_guard_regressions
+              cargo test --locked --test canonical_six_conditionals_main
               cargo test --locked
               node --test tests/*.test.mjs
               ;;
