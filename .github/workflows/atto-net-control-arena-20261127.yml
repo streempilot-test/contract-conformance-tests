@@ -1,0 +1,38 @@
+name: Dotnet exact unmanaged control arena
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/atto-net-control-arena-20261127.yml'
+permissions:
+  contents: read
+jobs:
+  control-arena:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Fetch exact public source without credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.net.git a9afaae4ef055ba38eb9dd3ff747f65f105ac75e
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = a9afaae4ef055ba38eb9dd3ff747f65f105ac75e
+          git -C source rev-parse HEAD^{tree}
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Execute CoreCLR and compiled NativeAOT host probes
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd source
+          dotnet --info
+          project=verification/Ores.Net.ControlPlaneArenaProbe/Ores.Net.ControlPlaneArenaProbe.csproj
+          dotnet run -c Release --project "$project" -p:PublishAot=false -p:SelfContained=false -p:PublishTrimmed=false
+          dotnet publish "$project" -c Release -r linux-x64 -o "$RUNNER_TEMP/net-control-native"
+          file "$RUNNER_TEMP/net-control-native/Ores.Net.ControlPlaneArenaProbe"
+          "$RUNNER_TEMP/net-control-native/Ores.Net.ControlPlaneArenaProbe"
+          git diff --exit-code
