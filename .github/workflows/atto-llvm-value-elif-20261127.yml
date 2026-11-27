@@ -14,11 +14,8 @@ jobs:
       matrix:
         include:
           - lane: candidate
-            head: 644eb6a13f59fcfc3045146fc723d1510f091766
-            tree: df57b9399baf3368540db05abcfe848640842b56
-          - lane: baseline
-            head: 2ea77477ae2df7a32949b9b3083e47f679d30324
-            tree: 9feb2ea5a6594a1c04350a16a1e103013dc6cb10
+            head: fe85c73e13459b3bd19057510a5307048216f7a3
+            tree: 21f76884ea01d2b75f1ab94b1a63079decc65487
     steps:
       - name: Fetch public exact Git source without credentials
         env:
