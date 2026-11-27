@@ -1,7 +1,7 @@
 name: Atto conformance portable mock identity
 on:
   push:
-    branches: [ci/atto-conformance713-portable-mock-20261127]
+    branches: [ci/atto-conformance715-receipt-contract-20261127]
   pull_request:
 permissions:
   contents: read
@@ -13,16 +13,16 @@ jobs:
       - name: Fetch exact public source
         run: |
           git init source
-          git -C source fetch --depth=1 https://github.com/atto-lang/atto-platform-conformance.git 6d0f1526be490c951d21cb2225efb55478665779
+          git -C source fetch --depth=1 https://github.com/atto-lang/atto-platform-conformance.git a834dd10558c731499ee0539d9e6b817d8ea78ee
           git -C source checkout --detach FETCH_HEAD
-          test "$(git -C source rev-parse HEAD)" = 6d0f1526be490c951d21cb2225efb55478665779
-          test "$(git -C source rev-parse HEAD^{tree})" = b5c8fac8ebaff5648584b978d101cd8040de16cd
+          test "$(git -C source rev-parse HEAD)" = a834dd10558c731499ee0539d9e6b817d8ea78ee
+          test "$(git -C source rev-parse HEAD^{tree})" = 823f440aeac4fa32fadb001500e0686e2a00f527
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '22'
       - name: Execute focused synthetic identity regression
         working-directory: source
-        run: node --test tests/spec-audit-compiler-adapter.test.mjs
+        run: node --test tests/callback-backend-receipt-v1.test.mjs tests/inverted-i64-experiment-contract.test.mjs
       - name: Execute unchanged complete host suite
         working-directory: source
         run: npm test
