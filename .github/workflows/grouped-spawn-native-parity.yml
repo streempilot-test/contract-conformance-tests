@@ -18,6 +18,10 @@ jobs:
             repo: atto-lang/atto-source.wasm
             head: 32a1f92ea993f3c4036f42b172d21d30d4ed6234
             tree: 283542bcb633d5f074b73f42fc80f7988f0f7e0d
+          - backend: forge
+            repo: atto-lang/atto-source.forge
+            head: 29201ae5df1344875bed402f05996d2e80e0cdd0
+            tree: 4054a755dccbb669fb38bf0563be97fbbdc0646e
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:
@@ -65,5 +69,17 @@ jobs:
         run: |
           set -euo pipefail
           node --test tests/actor-max-threads-preflight-lexical-20261105.test.mjs tests/pooled-actors.test.mjs tests/actor-spawn-quota-gate.test.mjs
+      - name: Forge parser and native host gate under sanitizers
+        if: matrix.backend == 'forge'
+        working-directory: source
+        run: |
+          set -euo pipefail
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON -DATTO_FORGE_SANITIZERS=ON
+          cmake --build build --parallel 2 --target scalar_parser_test forge_scalar oresforge
+          ctest --test-dir build --output-on-failure --no-tests=error -R '^(scalar_parser_test|scalar_cli_diagnostics)
+        run: echo 'PUBLIC_SOURCE_TREE_TESTS_ONLY; NOT GROUPED SPAWN GUEST PARITY'
+
+          c++ -std=c++20 -O1 -g -Wall -Wextra -Werror -pthread -fsanitize=address,undefined -fno-omit-frame-pointer -I. tests/actor_spawn_quota_gate.cpp -o build/actor_spawn_quota_gate
+          build/actor_spawn_quota_gate
       - name: Evidence boundary
         run: echo 'PUBLIC_SOURCE_TREE_TESTS_ONLY; NOT GROUPED SPAWN GUEST PARITY'
