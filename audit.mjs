@@ -21,6 +21,9 @@ guest('logical-or','pub fnc main(): int { return match |true || false| over on t
 guest('once-only','fnc subject(): int { stdio.println("subject"); return 2; } pub fnc main(): int { return match |subject()| over on 0 -> 0, on 2 -> 42, on _ -> 0 end; }',42,'subject\n');
 guest('default-only','fnc subject(): int { stdio.println("subject"); return 2; } pub fnc main(): int { return match |subject()| over on _ -> 42 end; }',42,'subject\n');
 guest('statement','pub fnc main(): int { match |7| over on 7 -> { return 42; } on _ -> { return 0; } end }',42);
+guest('ternary-subject','pub fnc main(): int { return match |false ? 0 : 42| over on 42 -> 42, on _ -> 0 end; }',42);
+guest('nested-ternary-subject','pub fnc main(): int { return match |false ? 0 : (true ? (2 | 4) : 0)| over on 6 -> 42, on _ -> 0 end; }',42);
+guest('statement-continuation','pub fnc main(): int { match |7| over on 7 -> { stdio.println(7); } on _ -> { stdio.println(0); } end; return 42; }',42,'7\n');
 guest('legacy','pub fnc main(): int { return match 7 over on 7 -> 42, on _ -> 0 end; }',42);
 reject('unsupported-product','pub fnc main(): int { return match |2, 4| over on _ -> 42 end; }');
 reject('ungrouped-or','pub fnc main(): int { return match |2 | 4| over on _ -> 42 end; }');

@@ -1,7 +1,7 @@
 name: Atto Rust 752 exact standalone match slice
 on:
   push:
-    branches: [ci/atto-delimited-match-rust752-reconciled-20261127]
+    branches: [ci/atto-rust757-delimited-ternary-20261127]
   pull_request:
 permissions:
   contents: read
@@ -18,12 +18,12 @@ jobs:
       - name: Fetch public candidate and verify source identity
         run: |
           git init compiler
-          git -C compiler fetch --depth=1 https://github.com/atto-lang/atto-source.rs.git dd4c760205fd30b4c3d9c0d3cafa03cdb3e26af2
+          git -C compiler fetch --depth=1 https://github.com/atto-lang/atto-source.rs.git 0dba2ba998e1f677454d4fa2612796df3fc71a49
           git -C compiler checkout --detach FETCH_HEAD
-          test "$(git -C compiler rev-parse HEAD)" = dd4c760205fd30b4c3d9c0d3cafa03cdb3e26af2
-          test "$(git -C compiler rev-parse HEAD^{tree})" = 4788ae2680f1eae246ba1cdae5bac9983dcffa25
-          test "$(git hash-object compiler/src/parser.rs)" = c4c9c5a68b332100a5518af8cb56a17eff4715dc
-          test "$(git hash-object compiler/tests/delimited_match_subject.rs)" = fb5060aa817a98dd89b09d5a4a965a3517659b90
+          test "$(git -C compiler rev-parse HEAD)" = 0dba2ba998e1f677454d4fa2612796df3fc71a49
+          test "$(git -C compiler rev-parse HEAD^{tree})" = 63365b0c8af3c16620fea202f3fb2ec18118a710
+          test "$(git hash-object compiler/src/parser.rs)" = 99ebb78f5544ddb12c5c36da9cf5e6bb018910c7
+          test "$(git hash-object compiler/tests/delimited_match_subject.rs)" = 96f976bbb6f8fec0749bc45e4585d96de4b649e9
       - name: Execute production parser and checker tests
         working-directory: compiler
         run: cargo test --locked --test delimited_match_subject
