@@ -18,12 +18,12 @@ jobs:
       matrix:
         include:
           - repo: atto-lang/atto-source.rs
-            head: 34e05fc4b6d6921a16a18fd691c31011b40a5740
-            tree: 563e7e2dfa723653e4b85830cd68499eec044109
+            head: c83d82d2b648e4afa91cfdd7f9fa124311511163
+            tree: 89fe0936501a8ea1368eb74cd31c992fc220c70a
             dir: .
           - repo: atto-lang/atto-source.llvm
-            head: 1752da808976e3621b07ac2254d72a5b5ef7c41d
-            tree: d12500c68bb920cecc6e17aa27f48390670cfd2a
+            head: edde75139a7c1ae35ff05911c714e57442c40449
+            tree: 9ac7669144e9a7fe4ee99e5d14e395ff901b82e4
             dir: frontend
     steps:
       - name: Fetch public source anonymously and verify exact root tree
@@ -72,12 +72,12 @@ jobs:
           const entry=' pub fnc main(): int { return ';
           const positives=[
             ...['int? x?','x?: int?','x?: Option<int>'].map(formal=>[
-              'fnc probe('+formal+'): int { if x is omitted { return 40; } return 1; }'+entry+'probe()+probe(None)+probe(Some(4)); }',42]),
+              'fnc probe('+formal+'): int { if x is omitted do return 40; fi return 1; }'+entry+'probe()+probe(None)+probe(Some(4)); }',42]),
             ['fnc f(int x): int { return 20; } fnc f(int x, y?: int?): int { return 22; }'+entry+'f(1)+f(1,None); }',42],
-            ['fnc f(x?: int?, y: int): int { if x is omitted { return y; } return 0; }'+entry+'f(omit,42); }',42],
-            ['fnc f(x?: int?): int { if x is omitted { return 42; } return 0; }'+entry+'f(_); }',42],
+            ['fnc f(x?: int?, y: int): int { if x is omitted do return y; fi return 0; }'+entry+'f(omit,42); }',42],
+            ['fnc f(x?: int?): int { if x is omitted do return 42; fi return 0; }'+entry+'f(_); }',42],
             ['fnc f(x?: int?): int { return 42; } fnc f(x?: Option<Result<int,string>>): int { return 1; } pub fnc main(): int { val v: Option<int> = None; return f(v); }',42],
-            ['fnc f(x?: int?): int { match x over on None -> { if x is omitted { return 20; } return 22; } on Some(n) -> { return n; } end }'+entry+'f()+f(None); }',42]
+            ['fnc f(x?: int?): int { match x over on None -> { if x is omitted do return 20; fi return 22; } on Some(n) -> { return n; } end }'+entry+'f()+f(None); }',42]
           ];
           for(const [i,[source,expected]] of positives.entries()){
             const file=join(dir,'p'+i+'.atto'),out=join(dir,'p'+i+'.wasm');
