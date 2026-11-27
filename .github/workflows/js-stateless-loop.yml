@@ -1,0 +1,31 @@
+name: Exact public JS stateless value-loop guest gate
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/js-stateless-loop.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  js:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Authenticate exact public JS compiler
+        run: |
+          set -euo pipefail
+          git init src
+          git -C src -c credential.helper= -c http.extraHeader= fetch --depth=1 --no-tags https://github.com/atto-lang/atto-source.js.git 00fe167ac44b99de631f6f84388379054d952b65
+          git -C src checkout --detach FETCH_HEAD
+          test "$(git -C src rev-parse HEAD)" = 00fe167ac44b99de631f6f84388379054d952b65
+          test "$(git -C src rev-parse HEAD^{tree})" = 400b38cf4e6cdb4bd6d8d0645864aff225e3d486
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Execute exact loop source and full compiler regression
+        run: |
+          set -euo pipefail
+          cd src
+          node --test tests/stateless-value-loop.test.mjs
+          npm test
+          git diff --exit-code
