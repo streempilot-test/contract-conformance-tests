@@ -1,7 +1,7 @@
 name: Hardened Java immutable recur guest qualification
 on:
   push:
-    branches: [ci/atto-recur-guard-fifo-068ddcc]
+    branches: [ci/atto-recur-guard-integrated-421b08c]
 permissions:
   contents: read
 jobs:
@@ -15,10 +15,10 @@ jobs:
           export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
           git init guest
           cd guest
-          git -c credential.helper= fetch --depth=1 https://github.com/atto-lang/atto-source.java.git 068ddcccecb5e9f43306e9968dd79c76b461e4fa
+          git -c credential.helper= fetch --depth=1 https://github.com/atto-lang/atto-source.java.git 421b08c7089202a97583d406b65a7c920ac952ae
           git checkout --detach FETCH_HEAD
-          test "$(git rev-parse HEAD)" = 068ddcccecb5e9f43306e9968dd79c76b461e4fa
-          test "$(git rev-parse HEAD^{tree})" = 7f9bb58e416072bcea48baedeea2d9db079d8d12
+          test "$(git rev-parse HEAD)" = 421b08c7089202a97583d406b65a7c920ac952ae
+          test "$(git rev-parse HEAD^{tree})" = b7779fb7f32166d0ad2e0233318bdd1f40e72980
           git fsck --full
       - uses: actions/setup-java@v4
         with:

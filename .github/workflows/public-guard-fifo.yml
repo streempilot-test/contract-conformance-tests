@@ -1,7 +1,7 @@
 name: Integrated guard guest and FIFO arena qualification
 on:
   push:
-    branches: [ci/atto-recur-guard-fifo-068ddcc]
+    branches: [ci/atto-recur-guard-integrated-421b08c]
 permissions:
   contents: read
 jobs:
@@ -11,8 +11,8 @@ jobs:
       matrix:
         include:
           - backend: rs
-            head: db00c87f51269fe781452478b4d4d821191c5bb8
-            tree: a203eadb276112cc23497c2de211962790e0f8c1
+            head: f1a7c7665a7d1a71313d585efbf267ba708450b1
+            tree: a9509db063807575fc0544643ef5ce39e2690eb2
           - backend: net
             head: 57db8b170142a413e460649c896c7242134039d7
             tree: 4564ad0a587cb38b3542bed6edfcae47fcc20eb7
