@@ -14,11 +14,11 @@ jobs:
         run: |
           set -euo pipefail
           git init compiler
-          git -C compiler -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.llvm.git 8ca5e27bc745db89932e2090fb40e632aab46b54
+          git -C compiler -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.llvm.git cbf1a5ccee8cfe3ea7f0aa76475ba2c9b4c3c29c
           git -C compiler checkout --detach FETCH_HEAD
-          test "$(git -C compiler rev-parse HEAD)" = 8ca5e27bc745db89932e2090fb40e632aab46b54
-          test "$(git -C compiler rev-parse HEAD^{tree})" = 5d9237cc6b51501f0d9d95092675860796427b0f
-          test "$(git -C compiler write-tree)" = 5d9237cc6b51501f0d9d95092675860796427b0f
+          test "$(git -C compiler rev-parse HEAD)" = cbf1a5ccee8cfe3ea7f0aa76475ba2c9b4c3c29c
+          test "$(git -C compiler rev-parse HEAD^{tree})" = 3d1b2db8062490356e62e07bdba577d4b2aefbcc
+          test "$(git -C compiler write-tree)" = 3d1b2db8062490356e62e07bdba577d4b2aefbcc
       - name: Build actual compiler and execute focused copy guests and regressions
         working-directory: compiler/frontend
         run: |
@@ -38,11 +38,11 @@ jobs:
         run: |
           set -euo pipefail
           git init source
-          git -C source -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.llvm.git 8ca5e27bc745db89932e2090fb40e632aab46b54
+          git -C source -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.llvm.git cbf1a5ccee8cfe3ea7f0aa76475ba2c9b4c3c29c
           git -C source checkout --detach FETCH_HEAD
-          test "$(git -C source rev-parse HEAD)" = 8ca5e27bc745db89932e2090fb40e632aab46b54
-          test "$(git -C source rev-parse HEAD^{tree})" = 5d9237cc6b51501f0d9d95092675860796427b0f
-          test "$(git -C source write-tree)" = 5d9237cc6b51501f0d9d95092675860796427b0f
+          test "$(git -C source rev-parse HEAD)" = cbf1a5ccee8cfe3ea7f0aa76475ba2c9b4c3c29c
+          test "$(git -C source rev-parse HEAD^{tree})" = 3d1b2db8062490356e62e07bdba577d4b2aefbcc
+          test "$(git -C source write-tree)" = 3d1b2db8062490356e62e07bdba577d4b2aefbcc
           cd source
           bash ci/test_native_copy_modes.sh
   java:
@@ -119,8 +119,8 @@ jobs:
             tree: 7c303f3336b45adf6ccc9f3dd06a08f66f207641
             subdir: .
           - repo: atto-source.llvm
-            head: 8ca5e27bc745db89932e2090fb40e632aab46b54
-            tree: 5d9237cc6b51501f0d9d95092675860796427b0f
+            head: cbf1a5ccee8cfe3ea7f0aa76475ba2c9b4c3c29c
+            tree: 3d1b2db8062490356e62e07bdba577d4b2aefbcc
             subdir: frontend
     steps:
       - name: Verify exact compiler and corpus source trees
