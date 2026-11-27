@@ -1,0 +1,109 @@
+name: Atto actor compiler and machine parity retry
+on:
+  pull_request:
+    branches: [main]
+permissions: {}
+jobs:
+  llvm-browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Verify public source identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          git init source
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.llvm.git baacde4118efa4531e6749608590451faacbd874
+          git -C source -c core.hooksPath=/dev/null checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = baacde4118efa4531e6749608590451faacbd874
+          test "$(git -C source write-tree)" = "$(git -C source rev-parse 'HEAD^{tree}')"
+          test "$(git -C source rev-parse 'HEAD^{tree}')" = 9c5f564aafa787048265f6ddbe2305a322a7b4ab
+          test -z "$(git -C source status --porcelain --untracked-files=all)"
+          git -C source rev-parse HEAD 'HEAD^{tree}'
+      - name: Run scoped tests
+        working-directory: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustc --version
+          cargo test --manifest-path frontend/Cargo.toml --locked --test unicode_identifier_negation_v1
+          cargo test --manifest-path frontend/Cargo.toml --locked
+  llvm-compiled-actors:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Verify public source identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          git init source
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.llvm.git 511829067db67547d412e5b4d34d16d6128b1e82
+          git -C source -c core.hooksPath=/dev/null checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = 511829067db67547d412e5b4d34d16d6128b1e82
+          test "$(git -C source write-tree)" = "$(git -C source rev-parse 'HEAD^{tree}')"
+          test -z "$(git -C source status --porcelain --untracked-files=all)"
+          git -C source rev-parse HEAD 'HEAD^{tree}'
+      - name: Run scoped tests
+        working-directory: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v llvm-config-18 || ! command -v clang-18 || ! test -f "$(llvm-config-18 --cmakedir)/LLVMConfig.cmake"; then
+            sudo apt-get update
+            sudo apt-get install -y llvm-18-dev clang-18 libclang-rt-18-dev
+          fi
+          cmake -S . -B /tmp/atto-llvm-build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DLLVM_DIR="$(llvm-config-18 --cmakedir)"
+          cmake --build /tmp/atto-llvm-build --target oreslang-llvmc -j2
+          python3 tests/source_actor_e2e.py --compiler /tmp/atto-llvm-build/oreslang-llvmc --clang "$(command -v clang-18)" --root "$PWD"
+          python3 tests/source_actor_e2e.py --compiler /tmp/atto-llvm-build/oreslang-llvmc --clang "$(command -v clang-18)" --root "$PWD" --sanitize
+  cranelift-machine:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Verify public source identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          git init source
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.cranelift.git 942baa72b2df5c44b38ae2fe7ba9ca33f41513f3
+          git -C source -c core.hooksPath=/dev/null checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = 942baa72b2df5c44b38ae2fe7ba9ca33f41513f3
+          test "$(git -C source write-tree)" = "$(git -C source rev-parse 'HEAD^{tree}')"
+          test -z "$(git -C source status --porcelain --untracked-files=all)"
+          git -C source rev-parse HEAD 'HEAD^{tree}'
+      - name: Run scoped tests
+        working-directory: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustc --version
+          rustc --edition=2024 --test tests/flat_machine_table_v1.rs -o /tmp/flat-machine-table
+          /tmp/flat-machine-table
+  net-machine:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Verify public source identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          git init source
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.net.git cf872e59f27a56dd33434d3e7884fe45e3fe9b8f
+          git -C source -c core.hooksPath=/dev/null checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = cf872e59f27a56dd33434d3e7884fe45e3fe9b8f
+          test "$(git -C source write-tree)" = "$(git -C source rev-parse 'HEAD^{tree}')"
+          test -z "$(git -C source status --porcelain --untracked-files=all)"
+          git -C source rev-parse HEAD 'HEAD^{tree}'
+      - name: Run scoped tests
+        working-directory: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet --list-sdks
+          dotnet publish verification/flat-machine-table-v1/FlatMachineTable.Host.csproj -c Release -r linux-x64 -o /tmp/flat-machine-net
+          file /tmp/flat-machine-net/FlatMachineTable.Host
+          /tmp/flat-machine-net/FlatMachineTable.Host
