@@ -1,7 +1,7 @@
 name: Atto Rust 752 exact standalone match slice
 on:
   push:
-    branches: [ci/atto-delimited-match-rust752-20261127]
+    branches: [ci/atto-delimited-match-rust752-reconciled-20261127]
   pull_request:
 permissions:
   contents: read
@@ -18,15 +18,18 @@ jobs:
       - name: Fetch public candidate and verify source identity
         run: |
           git init compiler
-          git -C compiler fetch --depth=1 https://github.com/atto-lang/atto-source.rs.git 887340d8469e5a16d8a57445869750f1e5bdfc5b
+          git -C compiler fetch --depth=1 https://github.com/atto-lang/atto-source.rs.git dd4c760205fd30b4c3d9c0d3cafa03cdb3e26af2
           git -C compiler checkout --detach FETCH_HEAD
-          test "$(git -C compiler rev-parse HEAD)" = 887340d8469e5a16d8a57445869750f1e5bdfc5b
-          git -C compiler rev-parse HEAD^{tree}
+          test "$(git -C compiler rev-parse HEAD)" = dd4c760205fd30b4c3d9c0d3cafa03cdb3e26af2
+          test "$(git -C compiler rev-parse HEAD^{tree})" = 4788ae2680f1eae246ba1cdae5bac9983dcffa25
           test "$(git hash-object compiler/src/parser.rs)" = c4c9c5a68b332100a5518af8cb56a17eff4715dc
           test "$(git hash-object compiler/tests/delimited_match_subject.rs)" = fb5060aa817a98dd89b09d5a4a965a3517659b90
       - name: Execute production parser and checker tests
         working-directory: compiler
         run: cargo test --locked --test delimited_match_subject
+      - name: Execute root Rust regression suite
+        working-directory: compiler
+        run: cargo test --locked
       - name: Build real CLI
         working-directory: compiler
         run: cargo build --locked --release --bin attoc
