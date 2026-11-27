@@ -1,0 +1,53 @@
+name: Forge bang separator exact integrated qualification
+on:
+  pull_request:
+    branches: [main]
+permissions: {}
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - cc: gcc
+            cxx: g++
+          - cc: clang
+            cxx: clang++
+    env:
+      GIT_TERMINAL_PROMPT: '0'
+      GIT_CONFIG_NOSYSTEM: '1'
+      GIT_CONFIG_GLOBAL: /dev/null
+      MAIN_SHA: a075fefb84bde2f9bf277ea8cf79c427ae853a5c
+      HEAD_SHA: 0713aff4b3211a181bc9aa70e5dd0fbcf1c5abd9
+    steps:
+      - name: Exact source trees and actual integration
+        run: |
+          set -euo pipefail
+          git init source
+          cd source
+          for pair in "$MAIN_SHA:ec924e7c9b90d7a4e320a45b19ac657d27cf1dfc" "$HEAD_SHA:e6068f715a73f3ec844978beafc25b10f6cc1725"; do
+            sha="${pair%%:*}"; tree="${pair#*:}"
+            git -c credential.helper= -c core.askPass= -c http.extraHeader= fetch --no-tags --depth=256 https://github.com/atto-lang/atto-source.forge.git "$sha"
+            test "$(git rev-parse FETCH_HEAD)" = "$sha"
+            test "$(git rev-parse FETCH_HEAD^{tree})" = "$tree"
+            printf 'EXACT_SOURCE sha=%s tree=%s\n' "$sha" "$tree"
+          done
+          git checkout --detach "$MAIN_SHA"
+          git -c user.name=atto-ci -c user.email=atto-ci@example.invalid merge --no-ff --no-commit "$HEAD_SHA"
+          test -z "$(git ls-files -u)"
+          test -z "$(git diff --name-only)"
+          printf 'INTEGRATED_TREE=%s\n' "$(git write-tree)"
+      - name: Full native build with compiler-specific sanitizers
+        env:
+          CC: ${{ matrix.cc }}
+          CXX: ${{ matrix.cxx }}
+        run: |
+          set -euo pipefail
+          cmake -S source -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DATTO_FORGE_SANITIZERS=ON
+          cmake --build build --parallel 2
+          ctest --test-dir build --output-on-failure --no-tests=error
+          test -z "$(git -C source diff --name-only)"
+          printf 'TESTED_INTEGRATED_TREE=%s\n' "$(git -C source write-tree)"
+          echo SCOPE=FORGE_BANG_LEXICAL_ADMISSION_AND_NATIVE_REGRESSIONS_NOT_OWNERSHIP_LOWERING
