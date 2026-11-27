@@ -1,0 +1,30 @@
+name: Java pre-change actor fixture reproduction
+on:
+  push:
+    branches: [ci/grouped-spawn-java-baseline-20261126]
+permissions: {}
+jobs:
+  baseline:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Anonymous exact public source baseline
+        env:
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_GLOBAL: /dev/null
+        run: |
+          set -euo pipefail
+          git init source
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.java.git 541f6879003c0f7a3bddaa9506d5ba8bdc4dd62b
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = 541f6879003c0f7a3bddaa9506d5ba8bdc4dd62b
+          test "$(git -C source rev-parse HEAD^{tree})" = 93e50bd7aaf9d7ce2e87f5a7fce49b73c029e40a
+          test -z "$(git -C source status --porcelain)"
+      - name: Reproduce pre-change actor fixture
+        working-directory: source
+        run: |
+          set -euo pipefail
+          export JAVA_HOME="$JAVA_HOME_21_X64"
+          export PATH="$JAVA_HOME/bin:$PATH"
+          mvn -B -ntp -Dtest=SourceActorSpawnExecutionTest#actorPrivateActorRefFieldOwnsChildAndSurvivesReceiveAwait test
