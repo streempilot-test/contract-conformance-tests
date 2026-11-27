@@ -9,8 +9,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     env:
-      SOURCE_HEAD: a3be374d0930c808958145296a53e11b5913fafd
-      SOURCE_TREE: a25597ae70b7cd5063a207dbe222bd24c420ee02
+      SOURCE_HEAD: 0f87399e3a627ea7b81227e88e5ce1082008e8bb
+      SOURCE_TREE: b874a4a4f0c0e1edf5f8c3d6b5abe3d4385bf109
       GIT_TERMINAL_PROMPT: '0'
     steps:
       - name: Fetch public source and verify exact commit and tree
