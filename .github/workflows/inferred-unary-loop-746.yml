@@ -1,0 +1,43 @@
+name: Exact reconciled inferred unary loop and Cranelift stdout
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/inferred-unary-loop-746.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  rust:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Authenticate and execute actual Rust compiler
+        run: |
+          set -euo pipefail
+          git init src
+          git -C src -c credential.helper= -c http.extraHeader= fetch --depth=1 --no-tags https://github.com/atto-lang/atto-source.rs.git 5ac57bf6aa61441d076c603a79ef85b703957f25
+          git -C src checkout --detach FETCH_HEAD
+          test "$(git -C src rev-parse HEAD)" = 5ac57bf6aa61441d076c603a79ef85b703957f25
+          test "$(git -C src write-tree)" = d4f5a997529b7bcf947beb2ee8e55a092f1a35a1
+          cd src
+          rustup toolchain install 1.85.1 --profile minimal --target wasm32-unknown-unknown
+          cargo +1.85.1 build --locked --release --bin attoc
+          cargo +1.85.1 rustc --locked --release --lib --target wasm32-unknown-unknown --crate-type cdylib -- -C link-arg=--max-memory=67108864
+          ATTOC=target/release/attoc node tests/conformance.mjs
+          git diff --exit-code
+  cranelift:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Authenticate and execute actual Cranelift binary tests
+        run: |
+          set -euo pipefail
+          git init src
+          git -C src -c credential.helper= -c http.extraHeader= fetch --depth=1 --no-tags https://github.com/atto-lang/atto-source.cranelift.git b8b278966f78f0726f96f2f0f76246a3792dfddf
+          git -C src checkout --detach FETCH_HEAD
+          test "$(git -C src rev-parse HEAD)" = b8b278966f78f0726f96f2f0f76246a3792dfddf
+          test "$(git -C src write-tree)" = b5bacf60a9b701900958091f9a46b8fb416318e8
+          cd src
+          rustup toolchain install stable --profile minimal
+          cargo +stable test --locked --bin orescranelift canonical_stdout_scalar_admission_tests
+          git diff --exit-code
