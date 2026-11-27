@@ -1,7 +1,7 @@
 name: LLVM exact native AOT audit and owning-return diagnostic
 on:
   push:
-    branches: ['ci/atto-llvm953-auditor-debug-20261127']
+    branches: ['ci/atto-llvm953-metadata-borrow-20261127']
 permissions: {}
 jobs:
   native:
@@ -22,10 +22,10 @@ jobs:
           set -euo pipefail
           git init source
           cd source
-          git -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.llvm.git 6865dd98bb8b64f2fd1fdda1c0b6aa72e3ed21a6
+          git -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.llvm.git a31741a7d2fcc85f4e3befdbc6043aaa7fd41ca1
           git checkout --detach FETCH_HEAD
-          test "$(git rev-parse HEAD)" = 6865dd98bb8b64f2fd1fdda1c0b6aa72e3ed21a6
-          test "$(git rev-parse HEAD^{tree})" = 5564f8407833cd010622c7f34b89df29b6b75a47
+          test "$(git rev-parse HEAD)" = a31741a7d2fcc85f4e3befdbc6043aaa7fd41ca1
+          test "$(git rev-parse HEAD^{tree})" = 38cebbf20fc4ddc4733ed029613e25f7bb0d7607
           git fsck --full --strict
           git ls-tree -r HEAD | awk '$1 != "100644" && $1 != "100755" {bad=1} END{exit bad}'
           test -z "$(git status --porcelain)"
