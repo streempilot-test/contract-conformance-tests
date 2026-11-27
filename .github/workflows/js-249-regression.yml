@@ -1,0 +1,31 @@
+name: Exact JS lexical writeback regression
+on:
+  push:
+    branches: [ci/js-249-scoped-writeback-07b54c8-20261127]
+    paths: [.github/workflows/js-249-regression.yml]
+permissions: {}
+jobs:
+  js:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Verify exact public source and tree
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init -q source
+          git -C source -c credential.helper= fetch --depth=1 https://github.com/atto-lang/atto-source.js.git 07b54c867d061e8eff59e46442d43d7629d541c6
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = 07b54c867d061e8eff59e46442d43d7629d541c6
+          test "$(git -C source rev-parse 'HEAD^{tree}')" = 2367bcb0b5a8aa3f9661f33036c6f23fdfd913fa
+      - name: Execute actual guest and IR denial regressions
+        working-directory: source
+        run: node --test tests/program-v2-inline-writeback.test.mjs
+      - name: Existing compiler and Worker regressions
+        working-directory: source
+        run: |
+          set -euo pipefail
+          node --test tests/sync-task-inline.test.mjs tests/inline-task-cli.test.mjs tests/java-canonical-worker-operators.test.mjs tests/execution-domain-admission-matrix.test.mjs
+          npm test
+          test "$(git rev-parse 'HEAD^{tree}')" = 2367bcb0b5a8aa3f9661f33036c6f23fdfd913fa
+          git diff --exit-code HEAD --
