@@ -14,10 +14,10 @@ jobs:
         run: |
           git init -q source
           git -C source remote add origin https://github.com/atto-lang/atto-source.llvm.git
-          git -C source fetch --no-tags --depth=1 origin 86ac73ea15d2a662e5580b2aaa704baad52706c0
+          git -C source fetch --no-tags --depth=1 origin c0b56b01eae6da0b7552aaf568a9812e14e6a7f8
           git -C source checkout --detach FETCH_HEAD
-          test "$(git -C source rev-parse HEAD)" = 86ac73ea15d2a662e5580b2aaa704baad52706c0
-          test "$(git -C source rev-parse 'HEAD^{tree}')" = 499413b00b99bdccdfdb5c16525af6be65576ecc
+          test "$(git -C source rev-parse HEAD)" = c0b56b01eae6da0b7552aaf568a9812e14e6a7f8
+          test "$(git -C source rev-parse 'HEAD^{tree}')" = 2de583cff9d880e5e5429592666f0b4ec441e553
           test "$(git -C source hash-object contracts/atto-xo-checked-u64-debit-v1/cases.tsv)" = 2d41ae576d049ed3a8898c3deacc8d30c705dce8
           test "$(git -C source hash-object tests/native_task_borrow_rejection.rs)" = af491d1b2dc337ecd1b40c217a1f838410032210
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
