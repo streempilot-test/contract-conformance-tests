@@ -1,0 +1,32 @@
+name: Atto exact unsigned IR NativeAOT execution
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/atto-net-u64-native-aot.yml']
+permissions:
+  contents: read
+jobs:
+  net-native:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Verify exact public source
+        run: |
+          git init -q source
+          git -C source remote add origin https://github.com/atto-lang/atto-source.net.git
+          git -C source fetch --no-tags --depth=1 origin 4006d64c55bfea9e22692f0b1ba56c09291b79c5
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = 4006d64c55bfea9e22692f0b1ba56c09291b79c5
+          test "$(git -C source rev-parse 'HEAD^{tree}')" = 817daf2351f1bbe52398c578585e7db40d811633
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: '10.0.x'
+      - name: Native toolchain
+        run: sudo apt-get update -qq && sudo apt-get install -y clang zlib1g-dev binutils
+      - name: Actual statically linked unsigned IR guest execution
+        working-directory: source
+        run: bash verification/UnsignedNativeAot/run.sh
+      - name: Full managed regression
+        if: always()
+        working-directory: source
+        run: dotnet run --project verification/Ores.Net.Tests/Ores.Net.Tests.csproj -c Release
