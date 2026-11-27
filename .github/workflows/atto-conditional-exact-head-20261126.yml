@@ -13,14 +13,22 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - lane: formatter
-            repo: atto-format
-            head: a2d793ec1790f649b28eaac832426f5490bc3ad5
-            tree: d016dee48cd5cd4ae73568f92e959b37dee6fc69
+          - lane: rust
+            repo: atto-source.rs
+            head: 8a4dfb617404685dac10e031f710ecd2170dbfea
+            tree: a7b2ab4e8e5250ff1e6b1c23c4e218334db26775
           - lane: clippy
             repo: atto-source.rs
-            head: 717e3c806cff9c4593981af8dd22f8e2ae49969b
-            tree: d70fa8df0758c6031956b93879c05bf65d4c9111
+            head: 5a1c0c5b7eb8735e99121d5b32d89db307279c99
+            tree: 4854fa77a806964356fbfc24d605675cc86d7b0d
+          - lane: java
+            repo: atto-source.java
+            head: 074f3f47d7e3ffe4af2a122d0454e73e4b8c969d
+            tree: b891e1975687eca148f0fdf12509e1b9069c6cac
+          - lane: js-u64
+            repo: atto-source.js
+            head: 34499b5506d85be2481e2c02931e86be9f3399ef
+            tree: 13c67bc2bb873ed8bb77c48eb2e5eb250bfb0a53
     steps:
       - name: Fetch only public exact Git source with no credentials
         env:
@@ -101,7 +109,7 @@ jobs:
               ;;
             java)
               java -version
-              mvn -B -ntp '-P!native-thread-unix' -Dtest=CanonicalSixConditionalMainTest -Dsurefire.failIfNoSpecifiedTests=true clean test
+              mvn -B -ntp '-P!native-thread-unix' -Dtest=CanonicalSixConditionalMainTest,CanonicalConditionalJoinCurrentMainTest -Dsurefire.failIfNoSpecifiedTests=true clean test
               report=target/surefire-reports/TEST-dev.oreslang.CanonicalSixConditionalMainTest.xml
               test -s "$report"
               grep -Eq '<testsuite[^>]*tests="[1-9][0-9]*"' "$report"
