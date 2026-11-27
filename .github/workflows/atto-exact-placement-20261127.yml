@@ -11,10 +11,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - backend: cranelift
-            pr: 230
-            head: db462ad670904572e7a31546471f081b94d4b529
-            tree: b2f9431d1187b1ecb373d67f91a0866b9c03b98b
+          - backend: llvm
+            pr: 1076
+            head: 0bf7be6a7c628537e461513c8515070ada80b2f9
+            tree: 6107e7a7678ad08581707e0310311cb718f96f39
     env:
       BACKEND: ${{ matrix.backend }}
       SOURCE_HEAD: ${{ matrix.head }}
