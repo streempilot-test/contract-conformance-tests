@@ -1,0 +1,71 @@
+name: Atto JS exact semantic integration
+on:
+  pull_request:
+    branches: [main]
+permissions: {}
+jobs:
+  js-integration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          node-version: '22'
+      - name: Reconcile exact public source trees
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          git init atto-source.js
+          cd atto-source.js
+          git -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=150 https://github.com/atto-lang/atto-source.js.git 8ab5ca4928d2c1a4e0bf20a40ba5dee705f99e12 6ac3e270712b35c1baba517efd6a737d2f40df90
+          git -c core.hooksPath=/dev/null checkout --detach 8ab5ca4928d2c1a4e0bf20a40ba5dee705f99e12
+          test "$(git merge-base HEAD 6ac3e270712b35c1baba517efd6a737d2f40df90)" = 7e83ab6fc3e78866a405b1e6392c3940ce3a8530
+          echo "MAIN_TREE=$(git rev-parse 'HEAD^{tree}')"
+          echo "SOURCE_TREE=$(git rev-parse '6ac3e270712b35c1baba517efd6a737d2f40df90^{tree}')"
+          git config user.name 'Atto local integration probe'
+          git config user.email 'integration@example.invalid'
+          if git -c core.hooksPath=/dev/null merge --no-commit --no-ff 6ac3e270712b35c1baba517efd6a737d2f40df90; then
+            echo "Unexpected conflict-free merge; inspect source first"
+            exit 1
+          fi
+          test "$(git diff --name-only --diff-filter=U)" = package.json
+          node --input-type=module <<'JS'
+          import {execFileSync} from 'node:child_process';
+          import {writeFileSync} from 'node:fs';
+          import assert from 'node:assert/strict';
+          const read=ref=>JSON.parse(execFileSync('git',['show',ref+':package.json'],{encoding:'utf8'}));
+          const base=read('7e83ab6fc3e78866a405b1e6392c3940ce3a8530');
+          const main=read('8ab5ca4928d2c1a4e0bf20a40ba5dee705f99e12');
+          const source=read('6ac3e270712b35c1baba517efd6a737d2f40df90');
+          const equal=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+          function merge(b,m,s,path='') {
+            if(equal(m,b))return s;
+            if(equal(s,b)||equal(s,m))return m;
+            if([b,m,s].every(x=>x!==null&&typeof x==='object'&&!Array.isArray(x))) {
+              return Object.fromEntries([...new Set([...Object.keys(s),...Object.keys(m),...Object.keys(b)])]
+                .map(k=>[k,merge(b[k],m[k],s[k],path+'.'+k)]).filter(([,v])=>v!==undefined));
+            }
+            throw Error('unresolved manifest conflict '+path);
+          }
+          const out=merge(base,main,source);
+          assert.equal(out.exports['./attached-struct-v1'],main.exports['./attached-struct-v1']);
+          assert.equal(out.scripts['test:attached-struct-v1'],main.scripts['test:attached-struct-v1']);
+          assert.equal(out.scripts['test:workers'],source.scripts['test:workers']);
+          assert.equal(out.scripts['test:browser'],source.scripts['test:browser']);
+          writeFileSync('package.json',JSON.stringify(out,null,2)+'\n');
+          JS
+          git add package.json
+          test -z "$(git diff --name-only --diff-filter=U)"
+          echo "MERGED_TREE=$(git write-tree)"
+          echo "MERGED_PACKAGE=$(git hash-object package.json)"
+          git diff --cached --name-status HEAD
+          git diff --cached --raw --no-abbrev HEAD
+      - name: Execute integrated JS tests
+        shell: bash
+        working-directory: atto-source.js
+        run: |
+          set -euo pipefail
+          npm run check
+          npm run test:workers
+          node --test tests/actor-future-host-v1.test.mjs tests/task-future-host-v1.test.mjs tests/portable-task-host-v3.test.mjs tests/portable-task-host-v4.test.mjs tests/portable-task-host-v5.test.mjs tests/worker-completion-adversarial.test.mjs tests/worker-completion-capability-v1.test.mjs tests/scheduled-recover-compiler.test.mjs tests/attached-struct-v1.test.mjs tests/buffered-stdio-host.test.mjs
