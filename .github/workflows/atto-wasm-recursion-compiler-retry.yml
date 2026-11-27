@@ -1,0 +1,71 @@
+name: Atto exact recursion compiler and real WASM supervisor guest
+on:
+  pull_request:
+    branches: [main]
+permissions: {}
+jobs:
+  wasm-guest:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Verify exact public source
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          git init atto-source.llvm
+          git -C atto-source.llvm -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.llvm.git 6f101415d4c270efc336179ef6cefbf7ffcfc0a0
+          git -C atto-source.llvm -c core.hooksPath=/dev/null checkout --detach FETCH_HEAD
+          test "$(git -C atto-source.llvm rev-parse HEAD)" = 6f101415d4c270efc336179ef6cefbf7ffcfc0a0
+          test "$(git -C atto-source.llvm write-tree)" = "$(git -C atto-source.llvm rev-parse 'HEAD^{tree}')"
+          test "$(git -C atto-source.llvm hash-object tests/fixtures/wasm32-actor-bounded-recursion-v1.atto)" = 947781cddf09d8e3e08c51cff2b7d8960e2d4750
+          test "$(git -C atto-source.llvm hash-object src/main/cpp/oreslang/main.cpp)" = ebdfd5ade5b03581d15d94605f4a6d9d124bb37d
+          git -C atto-source.llvm diff --exit-code HEAD
+          git -C atto-source.llvm rev-parse HEAD 'HEAD^{tree}'
+      - name: Select LLVM 18 development toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v llvm-config-18 || ! command -v clang-18 || ! test -f "$(llvm-config-18 --cmakedir)/LLVMConfig.cmake"; then
+            sudo apt-get update
+            sudo apt-get install -y llvm-18-dev clang-18 libclang-rt-18-dev
+          fi
+          llvm-config-18 --version
+          clang-18 --version
+      - name: Build compiler and execute actual actor guests
+        shell: bash
+        working-directory: atto-source.llvm
+        run: |
+          set -euo pipefail
+          cmake -S . -B /tmp/atto-llvm-build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DLLVM_DIR="$(llvm-config-18 --cmakedir)"
+          cmake --build /tmp/atto-llvm-build --target oreslang-llvmc -j2
+          test -x /tmp/atto-llvm-build/oreslang-llvmc
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Execute compiler's original recursion fixture
+        shell: bash
+        working-directory: atto-source.llvm
+        run: |
+          set -euo pipefail
+          python3 -I tests/wasm32_actor_checked_recursive_frames.py --compiler /tmp/atto-llvm-build/oreslang-llvmc --clang clang-18 --node node --fixture "$PWD/tests/fixtures/wasm32-actor-bounded-recursion-v1.atto"
+      - name: Execute mandatory compiled WASM supervisor fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          git init atto-source.wasm
+          git -C atto-source.wasm -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.wasm.git bcc7795d83f75e466dcf071485dcc365b4b5ac48
+          git -C atto-source.wasm -c core.hooksPath=/dev/null checkout --detach FETCH_HEAD
+          test "$(git -C atto-source.wasm rev-parse HEAD)" = bcc7795d83f75e466dcf071485dcc365b4b5ac48
+          test "$(git -C atto-source.wasm write-tree)" = "$(git -C atto-source.wasm rev-parse 'HEAD^{tree}')"
+          test "$(git -C atto-source.wasm hash-object tests/supervised-pooled-actor-v1.test.mjs)" = cf360d7f42178737df29c3190bc03c776d42191e
+          test "$(git -C atto-source.wasm hash-object contracts/actor-stack-containment-v1/recursive-sibling.atto)" = 947781cddf09d8e3e08c51cff2b7d8960e2d4750
+          export ORESLANG_LLVM_COMPILER=/tmp/atto-llvm-build/oreslang-llvmc
+          export ORESLANG_LLVM_COMPILER_SHA256="$(sha256sum "$ORESLANG_LLVM_COMPILER" | cut -d' ' -f1)"
+          export ORESLANG_LLVM_SOURCE_SHA="$(git -C atto-source.llvm rev-parse HEAD)"
+          export ORESLANG_LLVM_SOURCE_TREE_SHA="$(git -C atto-source.llvm rev-parse 'HEAD^{tree}')"
+          export CLANG=clang-18
+          export ATTO_REQUIRE_REAL_SUPERVISOR_GUEST=1
+          cd atto-source.wasm
+          npm run test:real-supervisor-guest
