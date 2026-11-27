@@ -1,0 +1,105 @@
+name: Atto public exact-source conditional and regression qualification
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/atto-conditional-exact-head-20261126.yml']
+permissions:
+  contents: read
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - lane: rust
+            repo: atto-source.rs
+            head: 5c9d94c92dcdebb8189251a18fbb7e20b5b9a578
+            tree: d40b47149d987e3d682e2aebdb5ba2f29d2e2ee5
+          - lane: js
+            repo: atto-source.js
+            head: 6b0834ba5c95b3c6ff63095c632833b77e70545e
+            tree: 26b22db52f21255e2d859163f72796d4c1d3eabb
+          - lane: formatter
+            repo: atto-format
+            head: 8680290bbba4aeb33c42bca161b5110eb4616820
+            tree: a9f3d89a510859431ca748cb8b0947942d83195b
+          - lane: clippy
+            repo: atto-source.rs
+            head: b789ff3b56565a0f4c6c37a7a1e7957c4e518922
+            tree: 12906c138aee61839e08d08ffd5f524605b9b701
+          - lane: js-u64
+            repo: atto-source.js
+            head: a44f3ea6a397d6db99babd0aebdd018842b9f93a
+            tree: 680899ffe367b9bed6d8b530b144e654498f5938
+    steps:
+      - name: Fetch only public exact Git source with no credentials
+        env:
+          SOURCE_REPO: ${{ matrix.repo }}
+          SOURCE_HEAD: ${{ matrix.head }}
+          SOURCE_TREE: ${{ matrix.tree }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$SOURCE_HEAD" =~ ^[a-f0-9]{40}$ && "$SOURCE_TREE" =~ ^[a-f0-9]{40}$ ]]
+          [[ "$SOURCE_REPO" =~ ^atto-(source\.(rs|js)|format)$ ]]
+          export GIT_TERMINAL_PROMPT=0
+          export GIT_CONFIG_NOSYSTEM=1
+          export GIT_CONFIG_GLOBAL=/dev/null
+          mkdir source
+          git -C source init -q
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 "https://github.com/atto-lang/$SOURCE_REPO.git" "$SOURCE_HEAD"
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = "$SOURCE_HEAD"
+          test "$(git -C source rev-parse 'HEAD^{tree}')" = "$SOURCE_TREE"
+          git -C source diff --quiet HEAD --
+          test -z "$(git -C source ls-files --others --exclude-standard)"
+          test -z "$(git -C source ls-files --others --ignored --exclude-standard)"
+          echo "VERIFIED_SOURCE_HEAD=$SOURCE_HEAD"
+          echo "VERIFIED_SOURCE_TREE=$SOURCE_TREE"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Install pinned Rust
+        if: matrix.lane == 'rust' || matrix.lane == 'clippy'
+        run: |
+          rustup toolchain install 1.85.1 --profile minimal --target wasm32-unknown-unknown
+          rustup component add clippy --toolchain 1.85.1
+          rustup default 1.85.1
+      - name: Execute scoped actual compiler tests
+        working-directory: source
+        env:
+          LANE: ${{ matrix.lane }}
+          RUST_MIN_STACK: "16777216"
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$LANE" in
+            rust)
+              cargo test --locked --test canonical_keyword_conditionals_main --test ternary_explicit_arm
+              cargo test --locked
+              cargo clippy --locked --all-targets -- -D warnings
+              ;;
+            clippy)
+              cargo clippy --locked --all-targets -- -D warnings
+              cargo test --locked
+              ;;
+            js)
+              npm run test:conditionals
+              npm run test:conditional-adt
+              npm test
+              ;;
+            js-u64)
+              npm test
+              npm run check
+              ;;
+            formatter)
+              cargo test --locked --test keyword_guard_regressions
+              cargo test --locked
+              node --test tests/*.test.mjs
+              ;;
+            *) exit 1 ;;
+          esac
+          git diff --quiet HEAD --
+          echo "SCOPED_EXECUTED_TESTS_COMPLETE=$LANE"
