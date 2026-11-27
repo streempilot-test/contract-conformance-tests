@@ -1,0 +1,26 @@
+name: Exact Rust ten-million recur guest
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/rust-ten-million-recur.yml'
+permissions:
+  contents: read
+jobs:
+  rust:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Authenticate and execute actual compiler and guests
+        run: |
+          set -euo pipefail
+          git init src
+          git -C src -c credential.helper= -c http.extraHeader= fetch --depth=1 --no-tags https://github.com/atto-lang/atto-source.rs.git bebd0ee1b37a3317b69ec136b8f7d7a14d1a80c4
+          git -C src checkout --detach FETCH_HEAD
+          test "$(git -C src rev-parse HEAD)" = bebd0ee1b37a3317b69ec136b8f7d7a14d1a80c4
+          test "$(git -C src write-tree)" = fbd82f58b1cfb51e0e904b162ecc20fa77f6dcbc
+          cd src
+          rustup toolchain install 1.85.1 --profile minimal --target wasm32-unknown-unknown
+          cargo +1.85.1 build --locked --release --bin attoc
+          cargo +1.85.1 rustc --locked --release --lib --target wasm32-unknown-unknown --crate-type cdylib -- -C link-arg=--max-memory=67108864
+          ATTOC=target/release/attoc node tests/conformance.mjs
+          git diff --exit-code
