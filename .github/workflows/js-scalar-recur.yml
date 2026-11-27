@@ -1,0 +1,30 @@
+name: Exact independent JS scalar recur guest gate
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/js-scalar-recur.yml'
+permissions:
+  contents: read
+jobs:
+  js:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Authenticate public source
+        run: |
+          set -euo pipefail
+          git init src
+          git -C src -c credential.helper= -c http.extraHeader= fetch --depth=1 --no-tags https://github.com/atto-lang/atto-source.js.git b13c90dc1ab0d09790c23449a853b7bcb5c4f
+          git -C src checkout --detach FETCH_HEAD
+          test "$(git -C src rev-parse HEAD)" = b13c90dc1ab0d09790c23449a853b7bcb5c4f
+          test "$(git -C src write-tree)" = 3e373b731e56b18c49dbf6123061526354f5ae28
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Execute real shared ESM guest and full regressions
+        run: |
+          set -euo pipefail
+          cd src
+          node --test tests/scalar-recur-value-loop.test.mjs
+          npm test
+          git diff --exit-code
