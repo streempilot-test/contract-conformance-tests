@@ -10,22 +10,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - backend: forge
-            repo: atto-lang/atto-source.forge
-            head: 81c29c6031621b5fd949dd56df918fce63436b76
-            tree: ee277d127ab57e642b3636fb63edc680daa50bd7
-          - backend: net
-            repo: atto-lang/atto-source.net
-            head: d912e4bd03f75cb6c41179b7ec07ea4cee661728
-            tree: 44e16cd4f8c0c70ea7f877a72c2a482c12575562
           - backend: llvm
             repo: atto-lang/atto-source.llvm
-            head: 8f89fad96691e151f436765f336fe25c7717b379
-            tree: 3c51f98821e7604f79dc75460b50641ae069d38f
-          - backend: wasm
-            repo: atto-lang/atto-source.wasm
-            head: a7fa282719a1d31932bf7c48a2852c6ce51ac378
-            tree: 203d3f4a70641c0b9ce5df92fd353e4d940edeec
+            head: 017274765984c547c03dad87c6c72c43b21e16c5
+            tree: 2f4f77c8e6b1c8d6224bf48153ddd8bec71ace04
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:
