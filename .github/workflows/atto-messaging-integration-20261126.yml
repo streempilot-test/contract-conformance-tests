@@ -1,0 +1,110 @@
+name: Atto exact frontend and lifecycle integration
+on:
+  pull_request:
+    branches: [main]
+permissions: {}
+jobs:
+  llvm-browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Verify public source identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          git init source
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.llvm.git baacde4118efa4531e6749608590451faacbd874
+          git -C source -c core.hooksPath=/dev/null checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = baacde4118efa4531e6749608590451faacbd874
+          test "$(git -C source write-tree)" = "$(git -C source rev-parse 'HEAD^{tree}')"
+          test -z "$(git -C source status --porcelain --untracked-files=all)"
+          git -C source rev-parse HEAD 'HEAD^{tree}'
+      - name: Run scoped integration tests
+        working-directory: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse 'HEAD^{tree}')" = 79e295ca1f287577b125defc98a1b9d1f2a80c88
+          rustc --version
+          cargo test --manifest-path frontend/Cargo.toml --locked --test unicode_identifier_negation_v1
+          cargo test --manifest-path frontend/Cargo.toml --locked
+  forge-topic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Verify public source identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          git init source
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.forge.git bdd26402eac36ba129488c0df7ba98ccaa30137f
+          git -C source -c core.hooksPath=/dev/null checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = bdd26402eac36ba129488c0df7ba98ccaa30137f
+          test "$(git -C source write-tree)" = "$(git -C source rev-parse 'HEAD^{tree}')"
+          test -z "$(git -C source status --porcelain --untracked-files=all)"
+          git -C source rev-parse HEAD 'HEAD^{tree}'
+      - name: Run scoped integration tests
+        working-directory: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object compiler/topic_publish_source_gate.hpp)" = 88ac30e4eb833661e0d81ad7e24f2d4b6482ebfe
+          test "$(git hash-object contracts/atto-ensemble-v1/canonical-unlowered-try-publish.atto)" = c562ad380bb283da9ffa26160653c1186ab63462
+          cmake -S . -B /tmp/forge-topic -DBUILD_TESTING=ON -DCMAKE_BUILD_TYPE=Debug
+          cmake --build /tmp/forge-topic --target oresforge_topic_publish_source_gate_test oresforge_source_control_admission_test --parallel 2
+          ctest --test-dir /tmp/forge-topic -R 'forge_topic_publish_alias_no_artifact|forge_source_terminal_control_admission' --no-tests=error --output-on-failure
+  forge-ctest:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Verify public source identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          git init source
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.forge.git c2304d7783da3b2e60d92c0f82f1846a275f3fba
+          git -C source -c core.hooksPath=/dev/null checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = c2304d7783da3b2e60d92c0f82f1846a275f3fba
+          test "$(git -C source write-tree)" = "$(git -C source rev-parse 'HEAD^{tree}')"
+          test -z "$(git -C source status --porcelain --untracked-files=all)"
+          git -C source rev-parse HEAD 'HEAD^{tree}'
+      - name: Run scoped integration tests
+        working-directory: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake -S . -B /tmp/forge-ctest -DBUILD_TESTING=ON -DCMAKE_BUILD_TYPE=Debug
+          cmake --build /tmp/forge-ctest --target oresforge_select_continuation_multi_owner_host --parallel 2
+          ctest --test-dir /tmp/forge-ctest -R '^oresforge_select_continuation_multi_owner_host$' --no-tests=error --output-on-failure
+  llvm-lifecycle:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Verify public source identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          git init source
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.llvm.git 511829067db67547d412e5b4d34d16d6128b1e82
+          git -C source -c core.hooksPath=/dev/null checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = 511829067db67547d412e5b4d34d16d6128b1e82
+          test "$(git -C source write-tree)" = "$(git -C source rev-parse 'HEAD^{tree}')"
+          test -z "$(git -C source status --porcelain --untracked-files=all)"
+          git -C source rev-parse HEAD 'HEAD^{tree}'
+      - name: Run scoped integration tests
+        working-directory: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          clang -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer -no-pie -std=c11 -pthread -Wall -Wextra -Wpedantic -Werror -UNDEBUG -DORESLANG_SOURCE_ACTOR_TESTING -Isrc/main/cpp tests/source_actor_one_for_one_restart_test.c src/main/cpp/oreslang/runtime/{ActorOwnedI64Heap,NativeActorScheduler,NativeOresVM,NativeActorFuture,SourceActorBootstrap,NativeActorLogicalFramesV1,NativeExecutionContextStore,NativeContinuationStore,NativeAwaitTraceBridge,NativeLogicalTrace}.c -o /tmp/atto-restart
+          for mode in default --exhaust --capacity --reuse --failed-reuse --failed-stop-reuse --sealed-flush; do
+            if test "$mode" = default; then
+              ASAN_OPTIONS=detect_leaks=1 UBSAN_OPTIONS=halt_on_error=1 timeout 90s /tmp/atto-restart
+            else
+              ASAN_OPTIONS=detect_leaks=1 UBSAN_OPTIONS=halt_on_error=1 timeout 90s /tmp/atto-restart "$mode"
+            fi
+          done
