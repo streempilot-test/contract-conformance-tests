@@ -1,0 +1,32 @@
+name: Atto structured bitand CIL
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/atto-structured-bitand-20261127.yml']
+permissions:
+  contents: read
+jobs:
+  clr:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Fetch exact public source
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.net.git ffad76ef24185d5970e0970762a31a4793d984f5
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = ffad76ef24185d5970e0970762a31a4793d984f5
+          git -C source rev-parse HEAD^{tree}
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Compile and execute structured bitand CIL
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd source
+          dotnet run -c Release --project verification/Ores.Net.StructuredBitAndProbe/Ores.Net.StructuredBitAndProbe.csproj
+          git diff --exit-code
