@@ -1,0 +1,89 @@
+name: Actor slab handle state exact parity
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/actor-slab-live-state-20261127.yml']
+permissions:
+  contents: read
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Exact public Rust source
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.rs.git 4def0e6d88cd5d3bc1bac790658ba05ec39b4cc9
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = 4def0e6d88cd5d3bc1bac790658ba05ec39b4cc9
+          git -C source rev-parse HEAD^{tree}
+      - name: Existing real slab tests and golden fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd source
+          rustc --version
+          cargo test --locked --lib actor_slab_heap -- --nocapture
+          git diff --exit-code
+  llvm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [g++, clang++]
+    steps:
+      - name: Exact public LLVM and existing golden fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.llvm.git c5dfc6a81f725508da0bffe75f095787e9c0ff72
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = c5dfc6a81f725508da0bffe75f095787e9c0ff72
+          git -C source rev-parse HEAD^{tree}
+          git init fixture
+          git -C fixture -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.rs.git 4def0e6d88cd5d3bc1bac790658ba05ec39b4cc9
+          git -C fixture checkout --detach FETCH_HEAD
+          test "$(git -C fixture rev-parse HEAD)" = 4def0e6d88cd5d3bc1bac790658ba05ec39b4cc9
+      - name: Build and execute native slab regression and golden comparison
+        shell: bash
+        env:
+          CXX: ${{ matrix.compiler }}
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1
+        run: |
+          set -euo pipefail
+          "$CXX" --version
+          for opt in -O1 -O2; do
+            flags=(-std=c++17 -Wall -Wextra -Werror "$opt" -g -fsanitize=address,undefined -fno-omit-frame-pointer -pthread -Isource/src/main/cpp)
+            "$CXX" "${flags[@]}" source/tests/actor_slab_heap_test.cpp -o "$RUNNER_TEMP/slab"
+            "$RUNNER_TEMP/slab"
+            "$CXX" "${flags[@]}" source/tests/actor_slab_heap_golden_v2_test.cpp -o "$RUNNER_TEMP/golden"
+            "$RUNNER_TEMP/golden" fixture/tests/fixtures/actor_slab_heap_golden_v2.txt
+          done
+          git -C source diff --exit-code
+  net:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Integrate exact public candidate with newest pinned main
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= fetch --no-tags https://github.com/atto-lang/atto-source.net.git 4dcf33283c1ec4c6569d21c44990e7d7bf6e255d 958da5d47578912688610c8d704508932796874f
+          git -C source checkout --detach 4dcf33283c1ec4c6569d21c44990e7d7bf6e255d
+          git -C source -c user.name=CI -c user.email=ci@example.invalid merge --no-edit --no-ff 958da5d47578912688610c8d704508932796874f
+          git -C source rev-parse HEAD^{tree}
+          test "$(git hash-object source/runtime/Ores.Net.Runtime/ControlPlaneArena32.cs)" = 288ad37e9377d884bf635115383b7bc87cb7038e
+          test "$(git hash-object source/verification/Ores.Net.ControlPlaneArenaProbe/Program.cs)" = d2e201d0932a8ea870af5b1de05734e40ea27ab0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - run: bash source/verification/Ores.Net.ControlPlaneArenaProbe/run-host-probe.sh
