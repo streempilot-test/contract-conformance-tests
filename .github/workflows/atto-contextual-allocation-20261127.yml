@@ -1,0 +1,65 @@
+name: Atto contextual allocation targeted proof
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/atto-contextual-allocation-20261127.yml'
+permissions:
+  contents: read
+jobs:
+  receipt:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Fetch exact public conformance head without credentials and execute
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-platform-conformance.git d390e3141cedde3271e357cd2ac59388748f5a08
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = d390e3141cedde3271e357cd2ac59388748f5a08
+          test "$(git hash-object source/tests/contextual-zero-gc-receipt-v1.mjs)" = 08df40848a1bdf4504ada688f03e24727761d29d
+          node --version
+          node source/tests/contextual-zero-gc-receipt-v1.mjs
+  native-pool:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [g++, clang++]
+        mode: [optimized, sanitized]
+    steps:
+      - name: Verify and integrate exact public LLVM candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= fetch --no-tags https://github.com/atto-lang/atto-source.llvm.git 1db8040557640f82e646945aa90fac371cf0012a 8c122eac2ea314b82cc2843c3d13093ea8a6077c
+          git -C source checkout --detach 1db8040557640f82e646945aa90fac371cf0012a
+          git -C source -c user.name=CI -c user.email=ci@example.invalid merge --no-edit --no-ff 8c122eac2ea314b82cc2843c3d13093ea8a6077c
+          git -C source rev-parse HEAD^{tree}
+          test "$(git hash-object source/src/main/cpp/oreslang/runtime/FixedBufferReusePrototype.hpp)" = 737cc95fea7f5c37ca1e78e8497ef972de458b5b
+          test "$(git hash-object source/tests/fixed_buffer_reuse_prototype_test.cpp)" = bc535cf8e5b8c945fe427159b1e075ed3ad82f18
+      - name: Compile and execute actual native pool regressions
+        shell: bash
+        env:
+          CXX: ${{ matrix.compiler }}
+          MODE: ${{ matrix.mode }}
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1
+        run: |
+          set -euo pipefail
+          flags=(-std=c++17 -pthread -Wall -Wextra -Werror)
+          if [[ "$CXX" == g++ ]]; then flags+=(-Wno-mismatched-new-delete); fi
+          if [[ "$MODE" == sanitized ]]; then
+            flags+=(-O1 -g -fno-omit-frame-pointer -fsanitize=address,undefined)
+          else
+            flags+=(-O2)
+          fi
+          "$CXX" --version
+          "$CXX" "${flags[@]}" -Isource/src/main/cpp source/tests/fixed_buffer_reuse_prototype_test.cpp -o "$RUNNER_TEMP/native-pool"
+          "$RUNNER_TEMP/native-pool"
