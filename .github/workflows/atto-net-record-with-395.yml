@@ -1,0 +1,28 @@
+name: Atto NET Record with 395 exact CoreCLR
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/atto-net-record-with-395.yml'
+permissions:
+  contents: read
+jobs:
+  net:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Pin public compiler and verify changed blobs
+        run: |
+          set -eu
+          git init guest-source
+          cd guest-source
+          git -c credential.helper= fetch --depth=1 https://github.com/atto-lang/atto-source.net.git 1cf7b259dc5e605109cc5f884492ca09b53100a1
+          git checkout --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = 1cf7b259dc5e605109cc5f884492ca09b53100a1
+          git rev-parse HEAD^{tree}
+          test "$(git hash-object compiler/Ores.Net.Compiler.Core/StructuredSource.cs)" = 91e43c333d51144587f23617759a139d2d771538
+          test "$(git hash-object verification/Ores.Net.Tests/StructuredCfgLoweringTests.cs)" = 6414b34214feaf4ce447d053808b3811ad540512
+      - name: Run actual CoreCLR regressions
+        working-directory: guest-source
+        run: |
+          dotnet --version
+          dotnet run --project verification/Ores.Net.Tests/Ores.Net.Tests.csproj --configuration Release
