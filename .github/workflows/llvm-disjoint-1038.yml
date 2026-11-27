@@ -1,0 +1,68 @@
+name: LLVM exact disjoint sibling read native guest gate
+on:
+  push:
+    branches: [ci/llvm-sibling-1040-20261126]
+permissions:
+  contents: read
+jobs:
+  native:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Authenticate candidate and original public trees
+        run: |
+          set -euo pipefail
+          fetch_exact() {
+            git init "$1"
+            git -C "$1" -c credential.helper= -c http.extraHeader= fetch --depth=1 --no-tags https://github.com/atto-lang/atto-source.llvm.git "$2"
+            git -C "$1" checkout --detach FETCH_HEAD
+            test "$(git -C "$1" rev-parse HEAD)" = "$2"
+            test "$(git -C "$1" rev-parse HEAD^{tree})" = "$3"
+            git -C "$1" fsck --full --no-reflogs
+          }
+          fetch_exact candidate 70a65075bc44884954046e3864c202fc18deef6f 2d0dc0d7d0dd24d33bd47ebac079d4679d7e70df
+          fetch_exact baseline 0eac49d8f6352ec73e3fb5f646b8b0db82f22754 74050e72b0af01cd1230b78766630469b5aa543e
+      - name: Install native LLVM toolchain
+        run: sudo apt-get update && sudo apt-get install -y llvm-18-dev clang-18 libssl-dev libzstd-dev libxml2-dev libffi-dev ninja-build
+      - name: Build exact production candidate and baseline compiler
+        id: build
+        run: |
+          set -euo pipefail
+          for d in candidate baseline; do
+            cmake -S "$d" -B "$d/build" -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DLLVM_DIR=/usr/lib/llvm-18/lib/cmake/llvm -DCMAKE_C_COMPILER=clang-18 -DCMAKE_CXX_COMPILER=clang++-18
+            cmake --build "$d/build" --target oreslang-llvmc --parallel 2
+          done
+      - name: Confirm baseline rejects the new disjoint cases without output
+        run: |
+          set -euo pipefail
+          failures=0
+          for f in candidate/tests/fixtures/class-projection-sibling-read*-native.atto; do
+            echo "BASELINE_CASE $f"
+            rc=0
+            baseline/build/oreslang-llvmc "$f" > old.ll 2> old.err || rc=$?
+            cat old.err
+            if [ "$rc" != 1 ] || [ -s old.ll ] || ! grep -F 'field read conflicts with active mutable borrow' old.err; then failures=$((failures+1)); fi
+          done
+          test "$failures" = 0
+      - name: Run exact candidate native projection tests
+        if: ${{ !cancelled() && steps.build.conclusion == 'success' }}
+        run: |
+          ctest --test-dir candidate/build -R '^native_projection_' --output-on-failure --no-tests=error
+      - name: Execute new positive guests with ASan and UBSan
+        if: ${{ !cancelled() && steps.build.conclusion == 'success' }}
+        run: |
+          set -euo pipefail
+          for f in candidate/tests/fixtures/class-projection-sibling-read*-native.atto; do
+            candidate/build/oreslang-llvmc "$f" > guest.ll
+            test -s guest.ll
+            clang-18 -O1 -fsanitize=address,undefined -fno-sanitize-recover=all guest.ll -o guest
+            rc=0
+            ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1 ./guest || rc=$?
+            test "$rc" = 42
+            echo "SANITIZED_GUEST_PASS $f"
+          done
+      - name: Verify exact tracked trees unchanged
+        if: always()
+        run: |
+          for d in candidate baseline; do git -C "$d" diff --exit-code HEAD; done
+          test "$(git -C candidate rev-parse HEAD^{tree})" = 2d0dc0d7d0dd24d33bd47ebac079d4679d7e70df
