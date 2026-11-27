@@ -18,12 +18,12 @@ jobs:
       matrix:
         include:
           - repo: atto-lang/atto-source.rs
-            head: dc3ce76aec5174fec2b4b6950e64a72769eec489
-            tree: ed298d57a67e8c43210eab280cd33fd70a55dadb
+            head: 25e787a3a3d3c8620ce2df1e22c0310f4bf007bc
+            tree: ce64b2fd66243506b07902e1dab2d8e72259dfd5
             dir: .
           - repo: atto-lang/atto-source.llvm
-            head: 1cb5b8b3d032b1e3f69a7690e4bc5cbd80277d88
-            tree: 162c62675accfa230965773dac4415577e5ebeae
+            head: 794d80de04fa59f343b616f197c9d65eb60590c9
+            tree: f97b484c5518c96e987405d31bcc8b1e2ddc2dec
             dir: frontend
     steps:
       - name: Fetch public source anonymously and verify exact root tree
