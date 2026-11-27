@@ -1,0 +1,53 @@
+name: Current-main Wasm managed-frame receipt and real actor qualification
+on:
+  push:
+    branches: [ci/wasm-managed-frame-current-20261127]
+    paths: [.github/workflows/wasm-managed-frame-current.yml]
+permissions: {}
+jobs:
+  real-wasm-actor:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - name: Fetch and verify exact current public LLVM and Wasm source trees
+        run: |
+          set -euo pipefail
+          clone_exact() {
+            local repo="$1" head="$2" tree="$3" dst="$4"
+            git init -q "$dst"
+            git -C "$dst" -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 "https://github.com/atto-lang/$repo.git" "$head"
+            git -C "$dst" checkout --detach FETCH_HEAD
+            test "$(git -C "$dst" rev-parse HEAD)" = "$head"
+            test "$(git -C "$dst" rev-parse 'HEAD^{tree}')" = "$tree"
+            git -C "$dst" diff --exit-code HEAD --
+          }
+          clone_exact atto-source.llvm 0b953417f002919dec5dc129e8c97428bd2d3900 8b7b45a3cfb5babdbf848dde545686eb1771f098 compiler
+          clone_exact atto-source.wasm bee352485b7d5d925346875971aa1892a9db0aae c50e27830f2fabb7fbbd6af345b81d9ca773318d host
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Execute actual host frame and retirement controls
+        working-directory: host
+        run: |
+          set -euo pipefail
+          node --test tests/pooled-actor-frame-turn.test.mjs tests/actor-frame-stacks.test.mjs tests/actor-frame-stack-primordials.test.mjs tests/actor-arena-primordial-scrub.test.mjs tests/pooled-actors.test.mjs tests/real-pooled-gate-admission.test.mjs
+      - name: Build genuine native LLVM source compiler
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y llvm-18-dev clang-18 lld-18
+          cmake -S compiler -B "$RUNNER_TEMP/compiler-build" -DLLVM_DIR="$(llvm-config-18 --cmakedir)" -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
+          cmake --build "$RUNNER_TEMP/compiler-build" --target oreslang-llvmc --parallel 2
+      - name: Execute mandatory real pooled actor guest gate
+        working-directory: host
+        run: |
+          set -euo pipefail
+          export ORESLANG_LLVM_COMPILER="$RUNNER_TEMP/compiler-build/oreslang-llvmc"
+          export ORESLANG_LLVM_COMPILER_SHA256="$(sha256sum "$ORESLANG_LLVM_COMPILER" | cut -d ' ' -f1)"
+          export CLANG=clang-18
+          echo "COMPILER_SHA256=$ORESLANG_LLVM_COMPILER_SHA256"
+          npm run test:real-pooled-actors | tee "$RUNNER_TEMP/pooled.log"
+          grep -Fx 'REAL_POOLED_ACTOR_TESTS_VERIFIED=3; SKIPPED=0; WORKERS=2; ACTORS=40; TURNS=1000' "$RUNNER_TEMP/pooled.log"
+          npm test
+          git diff --exit-code HEAD --
+          echo "EXECUTED_HOST_TREE=$(git rev-parse 'HEAD^{tree}')"
