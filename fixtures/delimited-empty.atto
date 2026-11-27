@@ -1,0 +1,1 @@
+pub fnc main(): int { return match | | over on _ -> 42 end; }
