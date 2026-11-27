@@ -14,10 +14,10 @@ jobs:
         run: |
           git init -q source
           git -C source remote add origin https://github.com/atto-lang/atto-source.rs.git
-          git -C source fetch --no-tags --depth=1 origin 1811fe0e313347e6db44d1ed84f083d04ac23bb8
+          git -C source fetch --no-tags --depth=1 origin ce120eb991c773550fb32cc567ddfd9e993fe2ae
           git -C source checkout --detach FETCH_HEAD
-          test "$(git -C source rev-parse HEAD)" = 1811fe0e313347e6db44d1ed84f083d04ac23bb8
-          test "$(git -C source rev-parse 'HEAD^{tree}')" = 80fbc47c50a761e2ecfbdf641442303d4c76bbab
+          test "$(git -C source rev-parse HEAD)" = ce120eb991c773550fb32cc567ddfd9e993fe2ae
+          test "$(git -C source rev-parse 'HEAD^{tree}')" = b1927024b2fa2b8f767323af7f94523dc3a2adbd
           test "$(git -C source hash-object contracts/atto-xo-checked-u64-debit-v1/cases.tsv)" = 2d41ae576d049ed3a8898c3deacc8d30c705dce8
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec
       - name: Actual unsigned native guest execution
