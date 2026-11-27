@@ -16,11 +16,11 @@ jobs:
         run: |
           set -euo pipefail
           git init source
-          git -C source -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.java.git 57b8e6ab5630ba16e09ec781f2f331e81c76dfde
+          git -C source -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.java.git 6610e7d3113a80ad5abe9690a5e160ff478bf17d
           git -C source checkout --detach FETCH_HEAD
-          test "$(git -C source rev-parse HEAD)" = 57b8e6ab5630ba16e09ec781f2f331e81c76dfde
-          test "$(git -C source rev-parse HEAD^{tree})" = f060f4566292e073b20d5af2a1b57956bffb4267
-          test "$(git -C source write-tree)" = f060f4566292e073b20d5af2a1b57956bffb4267
+          test "$(git -C source rev-parse HEAD)" = 6610e7d3113a80ad5abe9690a5e160ff478bf17d
+          test "$(git -C source rev-parse HEAD^{tree})" = 8efcffe0c4c0c949b6d658944171d16d202009e7
+          test "$(git -C source write-tree)" = 8efcffe0c4c0c949b6d658944171d16d202009e7
           git -C source log -1 --format='%H %T'
       - uses: graalvm/setup-graalvm@27b360dbb857524eaf0b4c4cef364d38e5b4f173
         with:
@@ -46,11 +46,11 @@ jobs:
         run: |
           set -euo pipefail
           git init source
-          git -C source -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.rs.git 5f9ae93a10aa18afe5d0d6c308abd5936cb546e4
+          git -C source -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.rs.git 21df56bd73b05f11e03076d5ff1ae9af028be746
           git -C source checkout --detach FETCH_HEAD
-          test "$(git -C source rev-parse HEAD)" = 5f9ae93a10aa18afe5d0d6c308abd5936cb546e4
-          test "$(git -C source rev-parse HEAD^{tree})" = dfe2f6c6c2623480617e69424b1b4074867b5ace
-          test "$(git -C source write-tree)" = dfe2f6c6c2623480617e69424b1b4074867b5ace
+          test "$(git -C source rev-parse HEAD)" = 21df56bd73b05f11e03076d5ff1ae9af028be746
+          test "$(git -C source rev-parse HEAD^{tree})" = 14f6df8c315d4241870038552390ee7924837c93
+          test "$(git -C source write-tree)" = 14f6df8c315d4241870038552390ee7924837c93
           git -C source log -1 --format='%H %T'
       - name: Execute Rust copy witness and compiler regression tests
         working-directory: source
@@ -75,15 +75,62 @@ jobs:
         run: |
           set -euo pipefail
           git init source
-          git -C source -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-platform-conformance.git 29fe5a71f546b4d7d94877d1ed6db57068240767
+          git -C source -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-platform-conformance.git 484a95fd38f24ed6485e6f4e6ea8dbaa5a858396
           git -C source checkout --detach FETCH_HEAD
-          test "$(git -C source rev-parse HEAD)" = 29fe5a71f546b4d7d94877d1ed6db57068240767
-          test "$(git -C source rev-parse HEAD^{tree})" = b1a1cb50d678b7a1cee9c3b1bddca302daffe810
-          test "$(git -C source write-tree)" = b1a1cb50d678b7a1cee9c3b1bddca302daffe810
+          test "$(git -C source rev-parse HEAD)" = 484a95fd38f24ed6485e6f4e6ea8dbaa5a858396
+          test "$(git -C source rev-parse HEAD^{tree})" = 41bb42cb80dec3da3b8a03ff61be77f1be0b6508
+          test "$(git -C source write-tree)" = 41bb42cb80dec3da3b8a03ff61be77f1be0b6508
           git -C source log -1 --format='%H %T'
       - name: Execute registry tests only, no guest parity claim
         working-directory: source
         run: |
           set -euo pipefail
-          node --test tests/copy-readonly-sharing-v1.test.mjs
+          node --test tests/copy-readonly-sharing-v1.test.mjs tests/copy-readonly-rust-wasm-runner.test.mjs
           echo SCOPE=HOST_FIXTURE_INTEGRITY_ONLY
+  portable-copy-guests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - repo: atto-source.rs
+            head: 21df56bd73b05f11e03076d5ff1ae9af028be746
+            tree: 14f6df8c315d4241870038552390ee7924837c93
+            subdir: .
+          - repo: atto-source.llvm
+            head: 9c6d48f3882064b6308c461341092a9971e2df4e
+            tree: a1e4e367c73f4eb3f03d64191bb772a8944aafde
+            subdir: frontend
+    steps:
+      - name: Anonymous source fetch and exact Git identity checks
+        env:
+          REPO: ${{ matrix.repo }}
+          HEAD_SHA: ${{ matrix.head }}
+          TREE_SHA: ${{ matrix.tree }}
+        run: |
+          set -euo pipefail
+          git init compiler
+          git -C compiler -c credential.helper= fetch --no-tags --depth=1 "https://github.com/atto-lang/${REPO}.git" "$HEAD_SHA"
+          git -C compiler checkout --detach FETCH_HEAD
+          test "$(git -C compiler rev-parse HEAD)" = "$HEAD_SHA"
+          test "$(git -C compiler rev-parse HEAD^{tree})" = "$TREE_SHA"
+          test "$(git -C compiler write-tree)" = "$TREE_SHA"
+          git init corpus
+          git -C corpus -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-platform-conformance.git 484a95fd38f24ed6485e6f4e6ea8dbaa5a858396
+          git -C corpus checkout --detach FETCH_HEAD
+          test "$(git -C corpus rev-parse HEAD)" = 484a95fd38f24ed6485e6f4e6ea8dbaa5a858396
+          test "$(git -C corpus rev-parse HEAD^{tree})" = 41bb42cb80dec3da3b8a03ff61be77f1be0b6508
+          test "$(git -C corpus write-tree)" = 41bb42cb80dec3da3b8a03ff61be77f1be0b6508
+      - name: Build actual compiler CLI and execute unchanged shared guests
+        env:
+          HEAD_SHA: ${{ matrix.head }}
+          TREE_SHA: ${{ matrix.tree }}
+          SUBDIR: ${{ matrix.subdir }}
+        run: |
+          set -euo pipefail
+          ROOT="$(realpath compiler)"
+          (cd "$ROOT/$SUBDIR" && cargo build --locked --bin attoc)
+          cd corpus
+          node --test tests/copy-readonly-rust-wasm-runner.test.mjs
+          node scripts/run-copy-readonly-rust-wasm-v1.mjs "$ROOT" "$ROOT/$SUBDIR/target/debug/attoc" "$HEAD_SHA" "$TREE_SHA" 484a95fd38f24ed6485e6f4e6ea8dbaa5a858396 41bb42cb80dec3da3b8a03ff61be77f1be0b6508
