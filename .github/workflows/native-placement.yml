@@ -1,0 +1,78 @@
+name: Atto current Cranelift placement and Forge boundary validation
+on:
+  push:
+    branches: [ci/atto-cranelift-forge-integration-20261127]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  cranelift:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - pr: 196
+            head: 21f66f8f5a74359a5da4f46abbd94b9fe1f1246c
+            tree: d68d1ecadd932f210fb17f8e61a7217e233c0f8c
+          - pr: 204
+            head: 7e5cf07ca2bff0881a1156f1de2ed5d30c0ffa86
+            tree: 7b7882a56b987abdd6dc21c6151a8639fee74015
+          - pr: 208
+            head: 78f5f382b8c74413912a480fc5f38477331d9821
+            tree: 3b6f4054178326fd51905cf6ff957a57d69b3cc1
+          - pr: 210
+            head: a492ed0deb07d6deaabc91fc1b0732badf2ee8b6
+            tree: 88d9c187f7cb13942f5598cbcefd88fe7ab09818
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Fetch and verify exact public candidate and current base
+        env:
+          HEAD_SHA: ${{ matrix.head }}
+          HEAD_TREE: ${{ matrix.tree }}
+        run: |
+          set -euo pipefail
+          git init compiler
+          cd compiler
+          git config user.email ci@example.invalid
+          git config user.name "Disposable CI"
+          git -c credential.helper= -c http.extraHeader= fetch --no-tags https://github.com/atto-lang/atto-source.cranelift.git 90a04f99ced9a0e3f77227093ecd7486ebb7db4a "$HEAD_SHA"
+          test "$(git rev-parse '90a04f99ced9a0e3f77227093ecd7486ebb7db4a^{tree}')" = 4f2bd496aab61ba991c8af9bd8ec3b5476a8266c
+          test "$(git rev-parse "$HEAD_SHA^{tree}")" = "$HEAD_TREE"
+          git checkout --detach 90a04f99ced9a0e3f77227093ecd7486ebb7db4a
+          git merge --no-ff --no-commit "$HEAD_SHA"
+          git write-tree | tee "$RUNNER_TEMP/integration-tree"
+          echo "INTEGRATION_TREE=$(cat "$RUNNER_TEMP/integration-tree")"
+      - name: Execute linked placement and complete regression
+        working-directory: compiler
+        run: |
+          set -euo pipefail
+          test "$(git write-tree)" = "$(cat "$RUNNER_TEMP/integration-tree")"
+          cargo test --locked
+          test "$(git write-tree)" = "$(cat "$RUNNER_TEMP/integration-tree")"
+  forge:
+    strategy:
+      fail-fast: false
+      matrix:
+        cxx: [g++, clang++]
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Verify exact public Forge candidate
+        run: |
+          git init compiler
+          git -C compiler fetch --depth=1 https://github.com/atto-lang/atto-source.forge.git 6de691aa1a6ff2970d105118b801d5a9efd39475
+          git -C compiler checkout --detach FETCH_HEAD
+          test "$(git -C compiler rev-parse HEAD)" = 6de691aa1a6ff2970d105118b801d5a9efd39475
+          test "$(git -C compiler rev-parse HEAD^{tree})" = bce7ee20d40062b7c91182a56718d339cb98622b
+      - name: Build and execute placement and scalar boundary tests
+        working-directory: compiler
+        env:
+          CXX: ${{ matrix.cxx }}
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1
+        run: |
+          set -euo pipefail
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON
+          cmake --build build --parallel 2
+          ctest --test-dir build --output-on-failure -R 'pointer_local|scalar_parser|scalar_emit'
