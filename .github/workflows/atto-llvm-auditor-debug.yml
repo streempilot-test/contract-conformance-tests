@@ -1,7 +1,7 @@
 name: LLVM exact native AOT audit and owning-return diagnostic
 on:
   push:
-    branches: ['ci/atto-llvm953-metadata-borrow-20261127']
+    branches: ['ci/atto-llvm953-actorref-debug-20261127']
 permissions: {}
 jobs:
   native:
@@ -22,10 +22,10 @@ jobs:
           set -euo pipefail
           git init source
           cd source
-          git -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.llvm.git a31741a7d2fcc85f4e3befdbc6043aaa7fd41ca1
+          git -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.llvm.git 93a48aa210739bdfabb6a2dcebc65dc0a4f5756d
           git checkout --detach FETCH_HEAD
-          test "$(git rev-parse HEAD)" = a31741a7d2fcc85f4e3befdbc6043aaa7fd41ca1
-          test "$(git rev-parse HEAD^{tree})" = 38cebbf20fc4ddc4733ed029613e25f7bb0d7607
+          test "$(git rev-parse HEAD)" = 93a48aa210739bdfabb6a2dcebc65dc0a4f5756d
+          test "$(git rev-parse HEAD^{tree})" = ed135ab205cc6a16e304b36c0cfb3a589c181dbf
           git fsck --full --strict
           git ls-tree -r HEAD | awk '$1 != "100644" && $1 != "100755" {bad=1} END{exit bad}'
           test -z "$(git status --porcelain)"
@@ -40,13 +40,24 @@ jobs:
           brew install "$formula"
           test "$("$(brew --prefix "$formula")/bin/llvm-config" --version | cut -d. -f1)" = "$VERSION"
           bash scripts/verify-native-class-string-macos.sh "$VERSION"
+      - name: Verify actor readiness and typed ref admission independently
+        if: always()
+        working-directory: source
+        env:
+          VERSION: ${{ matrix.llvm }}
+        run: |
+          set -euo pipefail
+          ctest --test-dir "build-class-string-llvm$VERSION" -R "source_actor_(await_ready|hasfuture_direct_await|typed_ref)" --output-on-failure --no-tests=error
       - name: Diagnose owning-array return exception without treating debugger as a pass
         if: failure() && matrix.llvm == 23
         working-directory: source
         shell: bash
         run: |
           set -euo pipefail
-          compiler="$PWD/build-class-string-llvm23/oreslang-llvmc"
+          prefix="$(brew --prefix llvm)"
+          cmake -S . -B build-owning-debug -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=OFF -DLLVM_DIR="$prefix/lib/cmake/llvm" -DORE_CLANG="$prefix/bin/clang"
+          cmake --build build-owning-debug --target oreslang-llvmc --parallel 2
+          compiler="$PWD/build-owning-debug/oreslang-llvmc"
           test -x "$compiler"
           work="$(mktemp -d)"
           trap 'rm -rf -- "$work"' EXIT
@@ -54,4 +65,4 @@ jobs:
           define class OwnedArrayRecord as pub val Array<int> values;end fnc touch():void{return;}fnc build():OwnedArrayRecord{touch();val Array<int> values=new Array<int>();values.add(42);return new OwnedArrayRecord(values);}pub fnc main():int{val OwnedArrayRecord box=build();return box.values.get(0)==42?0:1;}
           ATTO
           echo 'DIAGNOSTIC ONLY; previous failed job remains failed'
-          lldb --batch -o 'breakpoint set -E c++' -o run -o 'bt all' -- "$compiler" "$work/owning.atto"
+          lldb --batch -o 'breakpoint set -E c++' -o run -o 'bt all' -o 'frame select 3' -o 'frame variable' -o 'source list' -- "$compiler" "$work/owning.atto"
