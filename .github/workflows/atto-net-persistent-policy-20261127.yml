@@ -1,0 +1,32 @@
+name: Atto persistent CIL policy guest
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/atto-net-persistent-policy-20261127.yml']
+permissions:
+  contents: read
+jobs:
+  clr:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Fetch exact public source
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.net.git 99cfcb8106cf3db7f557313f7f551a2bd79fe5cb
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = 99cfcb8106cf3db7f557313f7f551a2bd79fe5cb
+          git -C source rev-parse HEAD^{tree}
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Execute exact committed source entrypoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd source
+          bash -n verification/Ores.Net.ArenaPolicyGuestProbe/run-guest-probes.sh
+          bash verification/Ores.Net.ArenaPolicyGuestProbe/run-guest-probes.sh
