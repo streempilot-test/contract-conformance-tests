@@ -1,0 +1,50 @@
+name: Atto conformance 633 exact host verification
+on:
+  push:
+    branches: [ci/atto-conformance633-reconciled-20261127]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  host:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Fetch and verify exact public source tree
+        run: |
+          git init source
+          git -C source fetch --depth=1 https://github.com/atto-lang/atto-platform-conformance.git 6cd1cf81d9eb403399a6db535f376f5f3491ed4a
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = 6cd1cf81d9eb403399a6db535f376f5f3491ed4a
+          test "$(git -C source rev-parse HEAD^{tree})" = 864dfaf66f71ce525154be1f31fd028ab60fba94
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Verify every fixture against manifest
+        working-directory: source
+        run: |
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import {readFileSync,readdirSync} from 'node:fs';
+          import {createHash} from 'node:crypto';
+          const root='fixtures/pipeline-match-await/v1/';
+          const m=JSON.parse(readFileSync(root+'manifest.json','utf8'));
+          assert.equal(m.cases.length,37);
+          assert.equal(new Set(m.cases.map(c=>c.id)).size,37);
+          assert.deepEqual(readdirSync(root).filter(x=>x.endsWith('.atto')).sort(),m.cases.map(c=>c.file).sort());
+          for(const c of m.cases){
+            assert.match(c.file,/^[a-z0-9-]+\.atto$/);
+            assert.ok(['exit','reject'].includes(c.expect));
+            if(c.expect==='exit')assert.ok(Number.isInteger(c.exit));
+            assert.equal(c.confirmedBackends.length,0);
+            const b=readFileSync(root+c.file);
+            assert.equal(createHash('sha1').update(Buffer.from('blob '+b.length+'\0')).update(b).digest('hex'),c.sourceGitBlobSha1,c.id);
+          }
+          console.log('37/37 fixture identities valid; no guest parity claim');
+          JS
+      - name: Execute complete host conformance harness suite
+        working-directory: source
+        run: npm test
