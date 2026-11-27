@@ -17,11 +17,14 @@ jobs:
           cd atto-source.cranelift
           git -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=10 https://github.com/atto-lang/atto-source.cranelift.git refs/heads/test/multi-owner-continuation-settlement-20261127 1b73ae0fd69d1521cc7f13bf3029796e8ed3ad57
           git -c core.hooksPath=/dev/null checkout --detach FETCH_HEAD
-          git -c core.hooksPath=/dev/null checkout --detach cf205939e7a48a2c078ac308e6c1ba4b3cea35d7
-          test "$(git rev-parse HEAD)" = cf205939e7a48a2c078ac308e6c1ba4b3cea35d7
+          git -c core.hooksPath=/dev/null checkout --detach 7985bf82ecb905619a4e93bd602c500f816b28e1
+          test "$(git rev-parse HEAD)" = 7985bf82ecb905619a4e93bd602c500f816b28e1
           test "$(git write-tree)" = "$(git rev-parse 'HEAD^{tree}')"
           test "$(git hash-object src/select_continuation_fence.rs)" = 42cc435e10dfb33e6e2e7759a3b36bab9de4aa44
-          test "$(git diff --name-only 1b73ae0fd69d1521cc7f13bf3029796e8ed3ad57 HEAD)" = src/select_continuation_fence.rs
+          test "$(git hash-object src/frontend.rs)" = a8f79031a2853d398ee8186de2fb3e1fc52678d8
+          test "$(git hash-object src/frontend/attached_scalar_values.rs)" = 77082d69cacc6ba73760c03fadfa41c1e264a562
+          test "$(git hash-object src/runtime_parking_effects.rs)" = 213afcbc09239574a97b8d4c67d2a006ac04f733
+          test "$(git diff --name-only 1b73ae0fd69d1521cc7f13bf3029796e8ed3ad57 HEAD)" = "$(printf '%s\n' src/frontend.rs src/frontend/attached_scalar_values.rs src/runtime_parking_effects.rs src/select_continuation_fence.rs)"
           git diff --exit-code HEAD
       - name: Execute stress and all-target regressions
         shell: bash
