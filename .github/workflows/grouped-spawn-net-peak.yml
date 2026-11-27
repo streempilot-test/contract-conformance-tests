@@ -1,0 +1,48 @@
+name: Public exact-tree native grouped spawn admission
+on:
+  push:
+    branches:
+      - ci/grouped-spawn-net-peak-20261126
+permissions: {}
+jobs:
+  compiler:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - backend: net
+            repo: atto-lang/atto-source.net
+            head: ba553c3131ec955071b024c480b7038f9718813a
+            tree: 9ac2f0e2ba8b3001de7a83aa48966d2ac9735773
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Anonymous fetch of public immutable source and root-tree verification
+        env:
+          SOURCE_REPO: ${{ matrix.repo }}
+          EXPECTED_HEAD: ${{ matrix.head }}
+          EXPECTED_TREE: ${{ matrix.tree }}
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_GLOBAL: /dev/null
+        run: |
+          set -euo pipefail
+          case "$SOURCE_REPO" in atto-lang/atto-source.forge|atto-lang/atto-source.net|atto-lang/atto-source.llvm|atto-lang/atto-source.wasm) ;; *) exit 2;; esac
+          [[ "$EXPECTED_HEAD" =~ ^[0-9a-f]{40}$ && "$EXPECTED_TREE" =~ ^[0-9a-f]{40}$ ]]
+          git init source
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 "https://github.com/$SOURCE_REPO.git" "$EXPECTED_HEAD"
+          git -C source -c advice.detachedHead=false checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git -C source rev-parse 'HEAD^{tree}')" = "$EXPECTED_TREE"
+          test -z "$(git -C source status --porcelain --untracked-files=all)"
+          printf 'PUBLIC_SOURCE_EXACT_HEAD=%s\nPUBLIC_SOURCE_EXACT_TREE=%s\n' "$EXPECTED_HEAD" "$EXPECTED_TREE"
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: '10.0.100'
+      - name: Native arena and managed runtime verification
+        working-directory: source
+        run: |
+          set -euo pipefail
+          dotnet run --project verification/Ores.Net.Tests -c Release
+      - name: Evidence boundary
+        run: echo 'HOST_RUNTIME_ONLY; NO GROUPED SPAWN GUEST OR NATIVEAOT CLAIM'
