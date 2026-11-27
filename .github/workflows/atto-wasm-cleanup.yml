@@ -1,7 +1,7 @@
 name: Wasm sealed workspace repair focused exact-tree verification
 on:
   push:
-    branches: ['ci/atto-wasm351-cleanup-exact-20261127']
+    branches: ['ci/atto-wasm351-percent-exact-20261127']
 permissions: {}
 jobs:
   verify:
@@ -29,7 +29,7 @@ jobs:
             test -z "$(git -C "$dir" status --porcelain)"
             echo "EXACT_SOURCE $repo $sha $tree"
           }
-          fetch_exact atto-source.wasm 8dd40f786fffbbafb47da5e465e43a3387bc6062 a367de5718a0320cddaa10a11039f71806a7fb75 source
+          fetch_exact atto-source.wasm c0b24ddf799d9bbb612c310fdfd0ffacc6622d13 5f3da79c00590f4abab34bd3c4252417287fadff source
           fetch_exact atto-source.llvm 96fe5ee218d4e9bc10a386e3d54f1c475c44d32f 3d01d03d8dd4ebeb0a9e05a7f18511f173234bb8 llvm-source
       - name: Exercise private sealed cleanup and external symlink boundary
         working-directory: source
