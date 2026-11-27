@@ -12,9 +12,9 @@ jobs:
       matrix:
         include:
           - backend: cranelift
-            pr: 229
-            head: 3eecc91d06caa5b8f34cef89afc5ae072b752bea
-            tree: aea7d0bb55ca0bd9d5f1b99bd6e342e129a755ad
+            pr: 234
+            head: 9cb3253ce1b8c1881e510124b1df3ddeb66fd038
+            tree: d1d40256bbea84509e69b323d9731562347d6709
     env:
       BACKEND: ${{ matrix.backend }}
       SOURCE_HEAD: ${{ matrix.head }}
@@ -75,6 +75,14 @@ jobs:
           if "$CARGO_TARGET_DIR/debug/orescranelift" emit-object "$dir/bad.atto" > "$dir/bad.o"; then exit 1; fi
           test ! -s "$dir/bad.o"
           echo CRANELIFT_IMPLICIT_GUEST_PASS
+          printf '%s\n' 'define dimension Length; define dimension Time; define dimension Speed = Length / Time; define unit Meter: Length; define unit Second: Time; define unit Mps: Speed; pub fnc main() -> int {return 42<Mps>*1<Second>/1<Meter>;}' > "$dir/compound.atto"
+          "$CARGO_TARGET_DIR/debug/orescranelift" emit-object "$dir/compound.atto" > "$dir/compound.o"
+          cc -std=c11 -Wall -Werror "$dir/host.c" "$dir/compound.o" -o "$dir/compound"
+          "$dir/compound"
+          printf '%s\n' 'define dimension Length; define dimension Empty = Length / Length; pub fnc main() -> int {return 42;}' > "$dir/empty.atto"
+          if "$CARGO_TARGET_DIR/debug/orescranelift" emit-object "$dir/empty.atto" > "$dir/empty.o"; then exit 1; fi
+          test ! -s "$dir/empty.o"
+          echo CRANELIFT_COMPOUND_GUEST_PASS
       - name: Verify tracked source unchanged
         shell: bash
         run: |
