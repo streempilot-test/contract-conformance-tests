@@ -1,0 +1,25 @@
+name: Exact reconciled state-loop tuple gate
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/loop-tuple-retest.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  tuple-boundary:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Authenticate and test exact public frontend
+        run: |
+          set -euo pipefail
+          git init src
+          git -C src -c credential.helper= -c http.extraHeader= fetch --depth=1 --no-tags https://github.com/atto-lang/atto-source.rs.git 6c7bde08fcf82d38ad3a6c8ee906d7fd986c7842
+          git -C src checkout --detach FETCH_HEAD
+          test "$(git -C src rev-parse HEAD)" = 6c7bde08fcf82d38ad3a6c8ee906d7fd986c7842
+          test "$(git -C src rev-parse HEAD^{tree})" = 94681ad0c2adbaed02bb54bec11883cf88fe5e4b
+          cd src
+          rustup toolchain install 1.85.1 --profile minimal
+          cargo +1.85.1 test --locked --test value_loop_tuple_boundary --test tuple_binding_admission --test tuple_binding_adversarial
+          git diff --exit-code
