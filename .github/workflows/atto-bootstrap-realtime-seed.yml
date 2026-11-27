@@ -41,7 +41,24 @@ jobs:
       - name: Source and model regression
         if: always()
         working-directory: source
-        run: node --test tests/*.test.mjs
+        run: |
+          find tests -maxdepth 1 -name '*.test.mjs' ! -name actor_data_codec_design.test.mjs ! -name exception-bang-bootstrap.test.mjs -print0 | xargs -0 node --test
+          git init -q "$RUNNER_TEMP/spec"
+          git -C "$RUNNER_TEMP/spec" remote add origin https://github.com/atto-lang/atto-spec.git
+          git -C "$RUNNER_TEMP/spec" fetch --no-tags --depth=1 origin 3eeb2ac1c42f9461eb7ab721b69762e8f530dc57
+          git -C "$RUNNER_TEMP/spec" checkout --detach FETCH_HEAD
+          test "$(git -C "$RUNNER_TEMP/spec" rev-parse HEAD)" = 3eeb2ac1c42f9461eb7ab721b69762e8f530dc57
+          git init -q "$RUNNER_TEMP/conformance"
+          git -C "$RUNNER_TEMP/conformance" remote add origin https://github.com/atto-lang/atto-platform-conformance.git
+          git -C "$RUNNER_TEMP/conformance" fetch --no-tags --depth=1 origin e13228ea6be5a262a4bdc337df3ac87b819e2b33
+          git -C "$RUNNER_TEMP/conformance" checkout --detach FETCH_HEAD
+          test "$(git -C "$RUNNER_TEMP/conformance" rev-parse HEAD)" = e13228ea6be5a262a4bdc337df3ac87b819e2b33
+          node tests/actor_data_codec_design.test.mjs "$RUNNER_TEMP/conformance/contracts/actor-data-codec-selection-v1.json" "$RUNNER_TEMP/spec/architecture/actor-data-codec-selection-v1.md"
+          git -C "$RUNNER_TEMP/spec" fetch --no-tags --depth=1 origin a5e08d47100778159a21ace627cd98ed0b537c3d
+          git -C "$RUNNER_TEMP/spec" checkout --detach FETCH_HEAD
+          test "$(git -C "$RUNNER_TEMP/spec" rev-parse HEAD)" = a5e08d47100778159a21ace627cd98ed0b537c3d
+          node --test "$RUNNER_TEMP/spec/tests/exception-control-bang-spellings.test.mjs"
+          node tests/exception-bang-bootstrap.test.mjs "$RUNNER_TEMP/spec/contracts/exception-control-bang/v1/cases.json"
   realtime:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -50,16 +67,16 @@ jobs:
         run: |
           git init -q source
           git -C source remote add origin https://github.com/atto-lang/atto-source.realtime.git
-          git -C source fetch --no-tags --depth=1 origin db8129ce5eafec21a5a2c688e71f8e7de8885d10
+          git -C source fetch --no-tags --depth=1 origin 4f754d257575d60513c9e00991104caf4ad5d0e9
           git -C source checkout --detach FETCH_HEAD
-          test "$(git -C source rev-parse HEAD)" = db8129ce5eafec21a5a2c688e71f8e7de8885d10
-          test "$(git -C source rev-parse 'HEAD^{tree}')" = f9bfbe139dae2dd399ff9145206d53ce41e26fbf
+          test "$(git -C source rev-parse HEAD)" = 4f754d257575d60513c9e00991104caf4ad5d0e9
+          test "$(git -C source rev-parse 'HEAD^{tree}')" = 0339e534c09d012e789c663d64051189765492a0
           git init -q forge
           git -C forge remote add origin https://github.com/atto-lang/atto-source.forge.git
-          git -C forge fetch --no-tags --depth=1 origin 38c261a38a0bdbc93f2971411879a9c90cb88d39
+          git -C forge fetch --no-tags --depth=1 origin aa57a912ac9992e3ee7a6d7d370edebdec85a230
           git -C forge checkout --detach FETCH_HEAD
-          test "$(git -C forge rev-parse HEAD)" = 38c261a38a0bdbc93f2971411879a9c90cb88d39
-          test "$(git -C forge rev-parse 'HEAD^{tree}')" = eee62fe519564751f74f524889715df501b30a03
+          test "$(git -C forge rev-parse HEAD)" = aa57a912ac9992e3ee7a6d7d370edebdec85a230
+          test "$(git -C forge rev-parse 'HEAD^{tree}')" = 16d4f0ad052ebc4be4a24321a1842ba2f94b4ea6
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '22'
