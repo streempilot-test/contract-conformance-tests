@@ -1,0 +1,35 @@
+name: Atto Java 2037 exact delimited subjects
+on:
+  push:
+    branches: [ci/atto-java2037-delimited-terminator-20261127]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  java:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Verify connector mirror and fetch public candidate
+        run: |
+          git init compiler
+          git -C compiler fetch --depth=1 https://github.com/atto-lang/atto-source.java.git ea26796267e720d5390f5fac1479eba7c1f0e604
+          git -C compiler checkout --detach FETCH_HEAD
+          test "$(git -C compiler rev-parse HEAD)" = ea26796267e720d5390f5fac1479eba7c1f0e604
+          test "$(git -C compiler rev-parse HEAD^{tree})" = bdf02d5b519273e26da9c5a0930acc984965f1c4
+          test "$(git hash-object mirror/src/main/java/dev/oreslang/parser/Parser.java)" = e85a598915feb69111f1233212b6e1fe3c25f5b6
+          cmp mirror/src/main/java/dev/oreslang/parser/Parser.java compiler/src/main/java/dev/oreslang/parser/Parser.java
+          test "$(git hash-object mirror/src/test/java/dev/oreslang/DelimitedMatchSubjectTest.java)" = 1877e29b49b7f369bb189b0b6cc3bdbf5e54106d
+          cmp mirror/src/test/java/dev/oreslang/DelimitedMatchSubjectTest.java compiler/src/test/java/dev/oreslang/DelimitedMatchSubjectTest.java
+      - uses: graalvm/setup-graalvm@27b360dbb857524eaf0b4c4cef364d38e5b4f173
+        with:
+          version: '25.3'
+          java-version: '25'
+          distribution: 'graalvm'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Execute real Graal compiler and guest tests
+        working-directory: compiler
+        run: mvn -B -ntp -Dtest=DelimitedMatchSubjectTest -Dsurefire.failIfNoSpecifiedTests=true test
