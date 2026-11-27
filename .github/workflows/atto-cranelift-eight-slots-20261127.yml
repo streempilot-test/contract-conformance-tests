@@ -1,0 +1,30 @@
+name: Atto Cranelift eight internal call slots
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/atto-cranelift-eight-slots-20261127.yml']
+permissions:
+  contents: read
+jobs:
+  native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Fetch public exact source
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.cranelift.git 71fdb996562138d3e3c0990a241b89f94d654815
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = 71fdb996562138d3e3c0990a241b89f94d654815
+          git -C source rev-parse HEAD^{tree}
+      - name: Real compiler native calls, regression and strict lint
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd source
+          cargo test --locked --test linked_native_eight_args -- --nocapture
+          cargo test --locked --all-targets
+          cargo clippy --locked --all-targets -- -D warnings
