@@ -1,0 +1,173 @@
+name: Atto five-backend pinned current-main integration gate
+on:
+  push:
+    branches: [ci/merge-wave-current-integration-20261127]
+    paths: [.github/workflows/merge-wave-integration.yml]
+permissions:
+  contents: read
+jobs:
+  qualify:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - lane: 'rust'
+            repo: 'atto-source.rs'
+            pr: '723'
+            base: '0fe8364a3921fe4c0fd8a5edc14466e9bbbf9610'
+            baseTree: '64fe8bbc65c4a7171c4dc35520ff21656b8e9711'
+            head: 'faa51a6e4e15166a3de59ae44d536ef11aaf0af3'
+            tree: 'ed3d5739352d1b993ba920d171e66aa8a01e907b'
+          - lane: 'js'
+            repo: 'atto-source.js'
+            pr: '249'
+            base: '8165a630205f411d04e3d6794a75f658cf8bb649'
+            baseTree: '7fc114644fc74b110b1fad9541d3d57144498d8a'
+            head: '53c43038664bfdc81b7873008b0d134773069919'
+            tree: '61379f606a37142ce9f76aa9c5f7cb4327c961ee'
+          - lane: 'net'
+            repo: 'atto-source.net'
+            pr: '359'
+            base: 'ad487d8aa05fa74ead285636c5bbdd0a9b604eb0'
+            baseTree: '9082a6193744865dbb4d9cde77ed89ad84c3ea65'
+            head: 'd3ccd5928c2572bd56307792c78e16a1c14bfca8'
+            tree: '5ee27d77e2b6e6e7b7e128240b6198fdf6d0e15a'
+          - lane: 'java'
+            repo: 'atto-source.java'
+            pr: '2027'
+            base: 'd1755b98211a715f929b5cfff203daf41a506f29'
+            baseTree: '9faf545bb07ba76d7a37b0e109b72390002679ec'
+            head: '0e764031aa2c51fe24dcb0ecaef1e12c35ca5cfa'
+            tree: '10568a36a7634150b975604a8782753156e4d2b9'
+          - lane: 'llvm'
+            repo: 'atto-source.llvm'
+            pr: '1048'
+            base: 'c449cd5445d50d4bf3b136b6018593cd602f1c37'
+            baseTree: '0148375ddb42aa1103ca19f562440a95ceb2b2e7'
+            head: 'dfa5cf6e139e652ad8eadef2142d520c88756762'
+            tree: 'c785e964eeca8ce9440589fad9aeff14923fdbef'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      RUST_MIN_STACK: '16777216'
+    steps:
+      - name: Verify exact public inputs and construct local integration tree
+        id: source
+        env:
+          REPO: ${{ matrix.repo }}
+          BASE: ${{ matrix.base }}
+          BASE_TREE: ${{ matrix.baseTree }}
+          HEAD_SHA: ${{ matrix.head }}
+          HEAD_TREE: ${{ matrix.tree }}
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          [[ "$REPO" =~ ^atto-source\.(rs|js|net|java|llvm)$ ]]
+          git init -q source
+          cd source
+          git -c credential.helper= -c http.extraHeader= fetch --no-tags "https://github.com/atto-lang/$REPO.git" "$BASE" "$HEAD_SHA"
+          test "$(git rev-parse "$BASE^{tree}")" = "$BASE_TREE"
+          test "$(git rev-parse "$HEAD_SHA^{tree}")" = "$HEAD_TREE"
+          git checkout --detach "$BASE"
+          git -c user.name=CI -c user.email=ci@example.invalid merge --no-commit --no-ff "$HEAD_SHA"
+          git diff --quiet --
+          test -z "$(git ls-files --unmerged)"
+          printf 'base=%s\nhead=%s\nintegrated_tree=%s\n' "$BASE" "$HEAD_SHA" "$(git write-tree)" | tee "$RUNNER_TEMP/integration.txt"
+          git diff --cached --stat
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Setup Rust
+        if: matrix.lane == 'rust' || matrix.lane == 'llvm'
+        run: |
+          rustup toolchain install 1.85.1 --profile minimal --component clippy --target wasm32-unknown-unknown
+          rustup default 1.85.1
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        if: matrix.lane == 'net'
+        with:
+          dotnet-version: '10.0.x'
+      - uses: graalvm/setup-graalvm@27b360dbb857524eaf0b4c4cef364d38e5b4f173
+        if: matrix.lane == 'java'
+        with:
+          java-version: '25'
+          version: '25.3'
+          distribution: graalvm
+          github-token: ${{ github.token }}
+      - name: Rust real compiler regressions and strict Clippy
+        if: matrix.lane == 'rust'
+        working-directory: source
+        run: |
+          set -euo pipefail
+          cargo clippy --locked --all-targets -- -D warnings
+          cargo test --locked --all-targets
+          cargo build --locked --bin attoc
+          ATTOC="$PWD/target/debug/attoc" node tests/struct_with_value_guest.mjs
+          ATTOC="$PWD/target/debug/attoc" ATTO_STRUCT_TARGET=js node tests/struct_with_value_guest.mjs
+      - name: JS actual lexical writeback guests and compiler regression
+        if: matrix.lane == 'js'
+        working-directory: source
+        run: |
+          set -euo pipefail
+          node --test tests/sync-task-inline.test.mjs tests/inline-task-cli.test.mjs tests/java-canonical-worker-operators.test.mjs tests/execution-domain-admission-matrix.test.mjs tests/program-v2-inline-writeback.test.mjs
+          npm test
+      - name: .NET CoreCLR and NativeAOT lexical cleanup guests
+        if: matrix.lane == 'net'
+        working-directory: source
+        run: |
+          set -euo pipefail
+          bash ci/test-trapped-inline-lexical-writeback.sh
+          node --input-type=module <<'NODE'
+          import {readFileSync,writeFileSync} from 'node:fs';
+          import assert from 'node:assert/strict';
+          let s=readFileSync('ci/test-trapped-inline-lexical-writeback.sh','utf8');
+          const pairs=[
+            ['dotnet build "$host" -c Release --no-incremental -o "$out/app" -p:PublishAot=false -p:SelfContained=false -p:PublishTrimmed=false "-p:GeneratedAssembly=$out/OresGenerated.dll"','dotnet publish "$host" -c Release -r linux-x64 -o "$out/app" -p:PublishAot=true -p:SelfContained=true "-p:GeneratedAssembly=$out/OresGenerated.dll"'],
+            ['dotnet "$out/app/oreslang-app.dll"','readelf -h "$out/app/oreslang-app" | grep -q ELF64; "$out/app/oreslang-app"']
+          ];
+          for(const [old,replacement] of pairs){assert.equal(s.split(old).length,2);s=s.replace(old,()=>replacement);}
+          writeFileSync('ci/.native-lexical-carrier.sh',s);
+          NODE
+          bash ci/.native-lexical-carrier.sh
+      - name: Java actual conditional compiler and Truffle guest tests
+        if: matrix.lane == 'java'
+        working-directory: source
+        run: |
+          set -euo pipefail
+          mvn -B -ntp '-P!native-thread-unix' -Dtest=CanonicalSixConditionalMainTest,CanonicalConditionalJoinCurrentMainTest -Dsurefire.failIfNoSpecifiedTests=true clean test
+          report=target/surefire-reports/TEST-dev.oreslang.CanonicalSixConditionalMainTest.xml
+          test -s "$report"
+          grep -Eq '<testsuite[^>]*tests="[1-9][0-9]*"' "$report"
+          if grep -Eq '<testsuite[^>]*(errors|failures|skipped)="[1-9][0-9]*"' "$report"; then exit 1; fi
+      - name: LLVM actual native ELF and Wasm short-circuit parity
+        if: matrix.lane == 'llvm'
+        working-directory: source
+        run: |
+          set -euo pipefail
+          cargo build --locked --offline --release --bin atto-llvm
+          cargo build --manifest-path frontend/Cargo.toml --locked --offline --release --bin attoc
+          bash ci/test_safe_signed_division_native.sh native
+          bash ci/test_safe_signed_division_native.sh wasm
+          git init -q "$RUNNER_TEMP/shared"
+          git -C "$RUNNER_TEMP/shared" -c credential.helper= fetch --depth=1 https://github.com/atto-lang/atto-platform-conformance.git 9ade5d5d75e2fbe379cd470617d09d7e9c5509f3
+          git -C "$RUNNER_TEMP/shared" checkout --detach FETCH_HEAD
+          test "$(git -C "$RUNNER_TEMP/shared" rev-parse 'HEAD^{tree}')" = a23aaeb38dea69454f48fc82f21917d47543dcb9
+          fixture="$RUNNER_TEMP/shared/fixtures/guard-condition-list-v1/keyword-short-circuit.atto"
+          test "$(git hash-object "$fixture")" = f3442ff5286983278cbecc01255d0184869580cf
+          target/release/atto-llvm "$fixture" -o "$RUNNER_TEMP/short.elf"
+          readelf -h "$RUNNER_TEMP/short.elf" | grep -q ELF64
+          status=0
+          "$RUNNER_TEMP/short.elf" || status=$?
+          test "$status" = 42
+          frontend/target/release/attoc "$fixture" -o "$RUNNER_TEMP/short.wasm"
+          node --input-type=module -e 'import assert from "node:assert/strict";import {readFileSync} from "node:fs"; const {instance}=await WebAssembly.instantiate(readFileSync(process.argv[1]),{});assert.equal(instance.exports.main(),42n);assert.equal(instance.exports.panic_code.value,0);' "$RUNNER_TEMP/short.wasm"
+          bash ci/test_native_aot.sh
+      - name: Recheck integration tree and tracked files
+        if: success()
+        working-directory: source
+        run: |
+          set -euo pipefail
+          expected="$(sed -n 's/^integrated_tree=//p' "$RUNNER_TEMP/integration.txt")"
+          test -n "$expected"
+          test "$(git write-tree)" = "$expected"
+          git diff --quiet --
+          echo "EXECUTED_INTEGRATION_TREE=$expected"
