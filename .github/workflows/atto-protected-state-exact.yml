@@ -85,3 +85,41 @@ jobs:
       - name: Full managed compiler and actor runtime suite including owned schema snapshots
         working-directory: source
         run: dotnet run --project verification/Ores.Net.Tests/Ores.Net.Tests.csproj -c Release
+      - name: Publish and execute static Counter NativeAOT guest
+        working-directory: source
+        run: |
+          set -euo pipefail
+          dotnet publish verification/Ores.Net.CounterMainV2Guest/Ores.Net.CounterMainV2Guest.csproj -c Release -r linux-x64 -p:PublishAot=true -p:SelfContained=true -o "$RUNNER_TEMP/counter-native"
+          binary="$RUNNER_TEMP/counter-native/Ores.Net.CounterMainV2Guest"
+          file "$binary"
+          test "$(timeout 30s "$binary")" = '1|3|6|10'
+          sha256sum "$binary"
+  rust-u64-integrated:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Verify public integrated candidate commit and tree
+        run: |
+          set -euo pipefail
+          git init -q source
+          git -C source remote add origin https://github.com/atto-lang/atto-source.rs.git
+          git -C source fetch --no-tags --depth=1 origin 9d8705dba974111597b7a0535b2a1b6717f2bf73
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = 9d8705dba974111597b7a0535b2a1b6717f2bf73
+          test "$(git -C source rev-parse 'HEAD^{tree}')" = 1b330d1fb2c9c2571f00c4c5569805464ee236ba
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec
+      - name: Actual unsigned native guest execution
+        working-directory: source/native
+        run: ulimit -c 0; cargo test --locked --test checked_u64_native -- --nocapture
+      - name: Full native regression
+        if: always()
+        working-directory: source/native
+        run: ulimit -c 0; cargo test --locked --all-targets --no-fail-fast
+      - name: Format and strict lint
+        if: always()
+        working-directory: source/native
+        run: cargo fmt --all -- --check
+      - name: Strict Clippy
+        if: always()
+        working-directory: source/native
+        run: cargo clippy --locked --all-targets -- -D warnings
