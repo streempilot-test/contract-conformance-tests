@@ -15,14 +15,14 @@ jobs:
           set -eu
           git init guest-source
           cd guest-source
-          git -c credential.helper= fetch --depth=1 https://github.com/atto-lang/atto-source.js.git 5e8705ac726fc2a0145058b273e8811b856bcefe
+          git -c credential.helper= fetch --depth=1 https://github.com/atto-lang/atto-source.js.git 2a6bc24a1d80fce6a1a46c583e759237c352b7cb
           git checkout --detach FETCH_HEAD
-          test "$(git rev-parse HEAD)" = 5e8705ac726fc2a0145058b273e8811b856bcefe
+          test "$(git rev-parse HEAD)" = 2a6bc24a1d80fce6a1a46c583e759237c352b7cb
           git rev-parse HEAD^{tree}
           test "$(git hash-object src/compiler.mjs)" = 10c21fdd0c9f8e83901f31418d364b7cdd2d96cd
           test "$(git hash-object tests/named-aggregate-module-scalar.test.mjs)" = 5b4c2ed7e528a59ed054c87c77cfd141a2cb9e3f
           test "$(git hash-object tests/named-aggregate-reserved-types.test.mjs)" = 50783063bdb3f9d331d81eb4e0558bd34a19ab4a
-          test "$(git hash-object tests/named-aggregate-type-inference.test.mjs)" = 82e0ea4835fb8a092cf894f963a73ca67b3ae735
+          test "$(git hash-object tests/named-aggregate-type-inference.test.mjs)" = 1be49252660073f51fd84ae74ffa600408f50325
       - name: Execute actual emitted JS aggregate guests
         working-directory: guest-source
         run: |
