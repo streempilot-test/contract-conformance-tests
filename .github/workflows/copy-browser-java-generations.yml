@@ -38,11 +38,11 @@ jobs:
         run: |
           set -euo pipefail
           git init source
-          git -C source -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.java.git 2656faa797cf3578735829507a0fa0d467877d56
+          git -C source -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.java.git 8dbc69df39638ce58876e496564ca08615474dcf
           git -C source checkout --detach FETCH_HEAD
-          test "$(git -C source rev-parse HEAD)" = 2656faa797cf3578735829507a0fa0d467877d56
-          test "$(git -C source rev-parse HEAD^{tree})" = bf59878ede8d0d6dacc6f93acfca678cd5556dc9
-          test "$(git -C source write-tree)" = bf59878ede8d0d6dacc6f93acfca678cd5556dc9
+          test "$(git -C source rev-parse HEAD)" = 8dbc69df39638ce58876e496564ca08615474dcf
+          test "$(git -C source rev-parse HEAD^{tree})" = 4f34ae5903af6019ca8f8e1a22f0dee5f63dfc63
+          test "$(git -C source write-tree)" = 4f34ae5903af6019ca8f8e1a22f0dee5f63dfc63
       - uses: graalvm/setup-graalvm@27b360dbb857524eaf0b4c4cef364d38e5b4f173
         with:
           version: '25.3'
@@ -62,11 +62,11 @@ jobs:
         run: |
           set -euo pipefail
           git init corpus
-          git -C corpus -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-platform-conformance.git ab6a52c462d0a11a3f1664e4eb85a7e511954d87
+          git -C corpus -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-platform-conformance.git 3631b3e941e449c8d38d3697d4a6d50d11b045f0
           git -C corpus checkout --detach FETCH_HEAD
-          test "$(git -C corpus rev-parse HEAD)" = ab6a52c462d0a11a3f1664e4eb85a7e511954d87
-          test "$(git -C corpus rev-parse HEAD^{tree})" = a92047523d52a32887ca58ebcf2d019fcf5f47a4
-          test "$(git -C corpus write-tree)" = a92047523d52a32887ca58ebcf2d019fcf5f47a4
+          test "$(git -C corpus rev-parse HEAD)" = 3631b3e941e449c8d38d3697d4a6d50d11b045f0
+          test "$(git -C corpus rev-parse HEAD^{tree})" = 70bf20ffa05c0ecd703a72923d852237a2465244
+          test "$(git -C corpus write-tree)" = 70bf20ffa05c0ecd703a72923d852237a2465244
           cd corpus
           node --test tests/copy-readonly-sharing-v1.test.mjs tests/copy-readonly-rust-wasm-runner.test.mjs
   rust:
