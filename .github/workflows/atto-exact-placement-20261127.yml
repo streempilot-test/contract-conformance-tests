@@ -13,12 +13,8 @@ jobs:
         include:
           - backend: llvm
             pr: 1078
-            head: d8f2b8fd32d47b214d4b32af1716578092c9483c
-            tree: b93b34f3ebd128798bd032ccabde0f7e03a1af01
-          - backend: cranelift
-            pr: 225
-            head: 06a127d02b770d19e3839b29e66ca7b36c0157ee
-            tree: 767e68ec1531a787d396f3e0c6b6b0d9c3496f02
+            head: 00841e1805d8217690ed37691141968d580a7409
+            tree: 50b82817b9387f6178f2c78a7e23edd658b04426
     env:
       BACKEND: ${{ matrix.backend }}
       SOURCE_HEAD: ${{ matrix.head }}
