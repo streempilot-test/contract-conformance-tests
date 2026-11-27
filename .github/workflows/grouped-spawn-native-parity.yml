@@ -1,0 +1,89 @@
+name: Public exact-tree native grouped spawn admission
+on:
+  push:
+    branches:
+      - ci/grouped-spawn-native-parity-20261126
+permissions: {}
+jobs:
+  compiler:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - backend: forge
+            repo: atto-lang/atto-source.forge
+            head: 81c29c6031621b5fd949dd56df918fce63436b76
+            tree: ee277d127ab57e642b3636fb63edc680daa50bd7
+          - backend: net
+            repo: atto-lang/atto-source.net
+            head: d912e4bd03f75cb6c41179b7ec07ea4cee661728
+            tree: 44e16cd4f8c0c70ea7f877a72c2a482c12575562
+          - backend: llvm
+            repo: atto-lang/atto-source.llvm
+            head: bcab79ed431166259e853160f1315e081f1a02bd
+            tree: 9a392dfaf29560301e9d430a95464c3bf129f5bf
+          - backend: wasm
+            repo: atto-lang/atto-source.wasm
+            head: a7fa282719a1d31932bf7c48a2852c6ce51ac378
+            tree: 203d3f4a70641c0b9ce5df92fd353e4d940edeec
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Anonymous fetch of public immutable source and root-tree verification
+        env:
+          SOURCE_REPO: ${{ matrix.repo }}
+          EXPECTED_HEAD: ${{ matrix.head }}
+          EXPECTED_TREE: ${{ matrix.tree }}
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_GLOBAL: /dev/null
+        run: |
+          set -euo pipefail
+          case "$SOURCE_REPO" in atto-lang/atto-source.forge|atto-lang/atto-source.net|atto-lang/atto-source.llvm|atto-lang/atto-source.wasm) ;; *) exit 2;; esac
+          [[ "$EXPECTED_HEAD" =~ ^[0-9a-f]{40}$ && "$EXPECTED_TREE" =~ ^[0-9a-f]{40}$ ]]
+          git init source
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 "https://github.com/$SOURCE_REPO.git" "$EXPECTED_HEAD"
+          git -C source -c advice.detachedHead=false checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git -C source rev-parse 'HEAD^{tree}')" = "$EXPECTED_TREE"
+          test -z "$(git -C source status --porcelain --untracked-files=all)"
+          printf 'PUBLIC_SOURCE_EXACT_HEAD=%s\nPUBLIC_SOURCE_EXACT_TREE=%s\n' "$EXPECTED_HEAD" "$EXPECTED_TREE"
+      - name: Forge C++ scalar parser and CLI no-artifact tests
+        if: matrix.backend == 'forge'
+        working-directory: source
+        run: |
+          set -euo pipefail
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON -DATTO_FORGE_SANITIZERS=ON
+          cmake --build build --parallel 2 --target scalar_parser_test forge_scalar oresforge
+          ctest --test-dir build --output-on-failure --no-tests=error -R '^(scalar_parser_test|scalar_cli_diagnostics)$'
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        if: matrix.backend == 'net'
+        with:
+          dotnet-version: '10.0.100'
+      - name: .NET existing managed compiler and runtime verification
+        if: matrix.backend == 'net'
+        working-directory: source
+        run: |
+          set -euo pipefail
+          dotnet run --project verification/Ores.Net.Tests -c Release
+      - name: LLVM native production parser admission
+        if: matrix.backend == 'llvm'
+        working-directory: source
+        run: |
+          set -euo pipefail
+          if ! command -v llvm-config >/dev/null; then
+            sudo apt-get update
+            sudo apt-get install -y llvm-dev
+          fi
+          cmake -S . -B build -DBUILD_TESTING=ON -DLLVM_DIR="$(llvm-config --cmakedir)"
+          cmake --build build --parallel 2 --target oreslang-native-actor-max-threads-admission-test
+          ctest --test-dir build --output-on-failure --no-tests=error -R '^native_actor_max_threads_source_admission$'
+      - name: Wasm source and host scheduler gate regression
+        if: matrix.backend == 'wasm'
+        working-directory: source
+        run: |
+          set -euo pipefail
+          node --version
+          node --test tests/actor-max-threads-preflight-lexical-20261105.test.mjs tests/pooled-actors.test.mjs
+      - name: Evidence boundary
+        run: echo 'PUBLIC_SOURCE_TREE_TESTS_ONLY; NOT GROUPED SPAWN GUEST PARITY'
