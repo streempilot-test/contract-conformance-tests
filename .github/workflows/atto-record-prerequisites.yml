@@ -1,0 +1,86 @@
+name: Atto Record prerequisites Java Forge NET (scoped)
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/atto-record-prerequisites.yml'
+permissions:
+  contents: read
+jobs:
+  java:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Pin public compiler and verify changed blobs
+        run: |
+          set -eu
+          git init guest-source
+          cd guest-source
+          git -c credential.helper= fetch --depth=1 https://github.com/atto-lang/atto-source.java.git cb5300e5e8970a24e29519a4e71e84bb4dc4a43b
+          git checkout --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = cb5300e5e8970a24e29519a4e71e84bb4dc4a43b
+          git rev-parse HEAD^{tree}
+          test "$(git hash-object 'src/main/java/dev/oreslang/parser/Lexer.java')" = 5b94a4cac78c7f45cac7d1dc3aa63eebacd9dc99
+          test "$(git hash-object 'src/main/java/dev/oreslang/parser/Parser.java')" = 80a61bda9101b52d72eb9fcd0af4f2c3c6cc34b6
+          test "$(git hash-object 'src/main/java/dev/oreslang/parser/Token.java')" = 454eb49eccae1734fc178923311db723db5cb18e
+          test "$(git hash-object 'src/test/java/dev/oreslang/RecursiveRecordParserTest.java')" = 0802751a7b451b1116bf4cbc423afa1cff90e836
+          test "$(git hash-object '.github/workflows/recursive-record-parser.yml')" = b8c6a4d1c7f75fdc445b1f15310d4efbea18eb79
+      - uses: graalvm/setup-graalvm@27b360dbb857524eaf0b4c4cef364d38e5b4f173
+        with:
+          version: '25.3'
+          java-version: '25'
+          distribution: graalvm
+      - name: Production parser and regression
+        working-directory: guest-source
+        run: mvn -B -ntp -Dtest=RecursiveRecordParserTest,ParserTest test
+  forge:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Pin public compiler and verify changed blobs
+        run: |
+          set -eu
+          git init guest-source
+          cd guest-source
+          git -c credential.helper= fetch --depth=1 https://github.com/atto-lang/atto-source.forge.git c8abe481c3f4e44341a287bfe3fb64d4cbf9869f
+          git checkout --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = c8abe481c3f4e44341a287bfe3fb64d4cbf9869f
+          git rev-parse HEAD^{tree}
+          test "$(git hash-object 'include/atto/scalar_lexer.hpp')" = 5aacd1db4c46719c2556dcc73639db5b1a59ce4d
+          test "$(git hash-object 'include/atto/scalar_parser.hpp')" = f8b2ad4acb105d31bae795a49aa549170da9cbed
+          test "$(git hash-object 'tests/scalar_guest.cmake')" = d678677089b7f08321127aab2162ab9ad65b587c
+          test "$(git hash-object 'tests/scalar_parser.cpp')" = 0a40130c221b56e2f8e71aa1dcdb1131d64e7faa
+          test "$(git hash-object 'fixtures/scalar-v1/pair-stored-different.atto')" = 53d14920528269c169fbaa5da9516b7f47217ec5
+          test "$(git hash-object 'fixtures/scalar-v1/pair-stored-expanded.atto')" = 81861b84e188f5b24924bb0b8efd340638a90447
+          test "$(git hash-object 'fixtures/scalar-v1/pair-stored-factory.atto')" = 13a659cb27b5def3be5d755241c9a56be480d687
+          test "$(git hash-object 'fixtures/scalar-v1/pair-stored-mixed.atto')" = 4124ad10551a9f3465120da5c7c787d908d9cce3
+          test "$(git hash-object 'fixtures/scalar-v1/pair-stored-quoted.atto')" = 6b541185713ec0a03eb0688b19d983b4eef8a40e
+          test "$(git hash-object 'fixtures/scalar-v1/pair-stored-short.atto')" = ed87ab0164f44eb2703d17d5a925905e242fc68a
+      - name: Build native scalar compiler and parser
+        working-directory: guest-source
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DATTO_FORGE_SANITIZERS=ON
+          cmake --build build --target scalar_parser_test forge_scalar -j2
+      - name: Execute parser and compiled native guests
+        working-directory: guest-source
+        run: ctest --test-dir build --output-on-failure --no-tests=error -R '^(scalar_parser_test|scalar_guest_pipeline|scalar_guest_conformance)$'
+  net:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Pin public compiler and verify changed blobs
+        run: |
+          set -eu
+          git init guest-source
+          cd guest-source
+          git -c credential.helper= fetch --depth=1 https://github.com/atto-lang/atto-source.net.git 6d0d396b020eae96d149887b99c896ced108f72f
+          git checkout --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = 6d0d396b020eae96d149887b99c896ced108f72f
+          git rev-parse HEAD^{tree}
+          test "$(git hash-object 'compiler/Ores.Net.Compiler.Core/StructuredSource.cs')" = 0790b3b15baa76f6c36e6089b4f84d94c67ed5c8
+          test "$(git hash-object 'verification/Ores.Net.Tests/StructuredCfgLoweringTests.cs')" = f636d06ee230e5c763846540b37768baa5602c13
+      - name: Verify installed SDK
+        working-directory: guest-source
+        run: dotnet --version
+      - name: Execute actual CoreCLR test harness
+        working-directory: guest-source
+        run: dotnet run --project verification/Ores.Net.Tests/Ores.Net.Tests.csproj --configuration Release
