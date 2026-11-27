@@ -1,0 +1,99 @@
+name: Atto exact public compiler retry D
+on:
+  push:
+    branches: [ci/atto-parity-exact-20261127-d]
+  pull_request:
+    paths: ['.github/workflows/atto-parity-exact-20261127-d.yml']
+permissions:
+  contents: read
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - lane: rust
+            source: atto-lang/atto-source.rs
+            head: a5ead73d9fd2cd148301781f38002e1770d01fcd
+            tree: 24a8dd0c36563d417b98d12876fb9d577a41faa9
+          - lane: llvm-browser
+            source: atto-lang/atto-source.llvm
+            head: e2831c957b52a0f77b0ac0f38732b3a416b381da
+            tree: derive
+          - lane: llvm-native
+            source: atto-lang/atto-source.llvm
+            head: 32119c7040f4f7e87932770212bcb0423b4ea00c
+            tree: 42193e2048dbfd20c9bdadac01fe34c7555f24f3
+          - lane: java
+            source: atto-lang/atto-source.java
+            head: 5caedd1c5b67bb6c2cb6fcb28703bd302079ae3b
+            tree: derive
+    env:
+      SOURCE: ${{ matrix.source }}
+      HEAD_SHA: ${{ matrix.head }}
+      ROOT_SHA: ${{ matrix.tree }}
+      LANE: ${{ matrix.lane }}
+      CARGO_TARGET_DIR: ${{ runner.temp }}/target
+    steps:
+      - name: Verify exact public source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git init "$RUNNER_TEMP/source"
+          cd "$RUNNER_TEMP/source"
+          git -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 "https://github.com/$SOURCE.git" "$HEAD_SHA"
+          git checkout --detach "$HEAD_SHA"
+          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
+          root="$(git rev-parse HEAD^{tree})"
+          test "$ROOT_SHA" = derive || test "$root" = "$ROOT_SHA"
+          test "$(git write-tree)" = "$root"
+          git diff --quiet
+          git fsck --no-reflogs --connectivity-only
+          echo "VERIFIED_ROOT=$root" >> "$GITHUB_ENV"
+          echo "SOURCE_HEAD=$HEAD_SHA SOURCE_TREE=$root"
+      - name: Rust strict checker and actual guests
+        if: matrix.lane == 'rust'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/source"
+          cargo clippy --locked --all-targets -- -D warnings
+          cargo test --locked --all-targets
+          cargo build --locked --bin attoc
+          ATTOC="$CARGO_TARGET_DIR/debug/attoc" node tests/struct_with_value_guest.mjs
+          ATTOC="$CARGO_TARGET_DIR/debug/attoc" ATTO_STRUCT_TARGET=js node tests/struct_with_value_guest.mjs
+      - name: LLVM real Wasm and native guests
+        if: startsWith(matrix.lane, 'llvm-')
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/source/frontend"
+          cargo test --locked
+          cargo build --locked --bin attoc
+          ATTOC="$CARGO_TARGET_DIR/debug/attoc" node tests/struct_with_value_guest.mjs
+          if test "$LANE" = llvm-native; then
+            ATTOC="$CARGO_TARGET_DIR/debug/attoc" node tests/struct_with_native_clang.mjs
+          fi
+      - uses: graalvm/setup-graalvm@27b360dbb857524eaf0b4c4cef364d38e5b4f173
+        if: matrix.lane == 'java'
+        with:
+          java-version: '25'
+          distribution: graalvm
+          github-token: ''
+      - name: Java actual struct guests
+        if: matrix.lane == 'java'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/source"
+          mvn -B -Dtest=AttachedStructScalarExecutionTest test
+      - name: Verify exact tracked source unchanged
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/source"
+          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
+          test "$(git write-tree)" = "$VERIFIED_ROOT"
+          git diff --quiet
