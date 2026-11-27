@@ -1,0 +1,51 @@
+name: Integrated guard guest and FIFO arena qualification
+on:
+  push:
+    branches: [ci/atto-recur-guard-fifo-068ddcc]
+permissions:
+  contents: read
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - backend: rs
+            head: db00c87f51269fe781452478b4d4d821191c5bb8
+            tree: a203eadb276112cc23497c2de211962790e0f8c1
+          - backend: net
+            head: 57db8b170142a413e460649c896c7242134039d7
+            tree: 4564ad0a587cb38b3542bed6edfcae47fcc20eb7
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Exact public commit and tree
+        env:
+          BACKEND: ${{ matrix.backend }}
+          EXPECTED_HEAD: ${{ matrix.head }}
+          EXPECTED_TREE: ${{ matrix.tree }}
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          git init guest
+          cd guest
+          git -c credential.helper= fetch --depth=1 "https://github.com/atto-lang/atto-source.$BACKEND.git" "$EXPECTED_HEAD"
+          git checkout --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git rev-parse HEAD^{tree})" = "$EXPECTED_TREE"
+          git fsck --full
+      - name: Rust native and browser compiler guest execution
+        if: matrix.backend == 'rs'
+        working-directory: guest
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.85.1 --profile minimal --target wasm32-unknown-unknown
+          cargo +1.85.1 build --locked --release --bin attoc
+          cargo +1.85.1 rustc --locked --release --lib --target wasm32-unknown-unknown --crate-type cdylib -- -C link-arg=--max-memory=67108864
+          node tests/guard_keyword_current_guest.mjs
+          cargo +1.85.1 test --locked --test guard_keyword_current
+          cargo +1.85.1 test --locked --all-targets
+      - name: CoreCLR and NativeAOT arena host probe
+        if: matrix.backend == 'net'
+        working-directory: guest
+        run: bash verification/Ores.Net.ControlPlaneArenaProbe/run-host-probe.sh

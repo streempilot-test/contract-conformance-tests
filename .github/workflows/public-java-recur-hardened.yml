@@ -1,0 +1,29 @@
+name: Hardened Java immutable recur guest qualification
+on:
+  push:
+    branches: [ci/atto-recur-guard-fifo-068ddcc]
+permissions:
+  contents: read
+jobs:
+  guest:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Verify exact public source
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          git init guest
+          cd guest
+          git -c credential.helper= fetch --depth=1 https://github.com/atto-lang/atto-source.java.git 068ddcccecb5e9f43306e9968dd79c76b461e4fa
+          git checkout --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = 068ddcccecb5e9f43306e9968dd79c76b461e4fa
+          test "$(git rev-parse HEAD^{tree})" = 7f9bb58e416072bcea48baedeea2d9db079d8d12
+          git fsck --full
+      - uses: actions/setup-java@v4
+        with:
+          distribution: graalvm
+          java-version: '25'
+      - name: Execute stateful and stateless guest regressions
+        working-directory: guest
+        run: mvn -B -ntp -Dtest=AttoStateValueLoopTest,AttoStatelessValueLoopTest test

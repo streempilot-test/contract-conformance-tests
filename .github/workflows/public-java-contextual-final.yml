@@ -1,0 +1,29 @@
+name: Java contextual final integrated qualification
+on:
+  push:
+    branches: [ci/atto-recur-guard-fifo-068ddcc]
+permissions:
+  contents: read
+jobs:
+  guest:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Verify exact public tree
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          git init guest
+          cd guest
+          git -c credential.helper= fetch --depth=1 https://github.com/atto-lang/atto-source.java.git 054e1839e2efb85357714dc2a40faf39e64401b3
+          git checkout --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = 054e1839e2efb85357714dc2a40faf39e64401b3
+          test "$(git rev-parse HEAD^{tree})" = 6af736e5d57b0e960c8133717dd2a57e2ed64903
+          git fsck --full
+      - uses: actions/setup-java@v4
+        with:
+          distribution: graalvm
+          java-version: '25'
+      - name: Checked guest regression
+        working-directory: guest
+        run: mvn -B -ntp -Dtest=ContextualIntGuestTest,AttoStatelessValueLoopTest test
