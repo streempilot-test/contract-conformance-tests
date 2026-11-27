@@ -1,0 +1,30 @@
+name: Atto JS Map subtype 304 exact guest
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/atto-js-map-subtype-304.yml'
+permissions:
+  contents: read
+jobs:
+  js:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Pin public compiler and verify corpus and changed blobs
+        run: |
+          set -eu
+          git init guest-source
+          cd guest-source
+          git -c credential.helper= fetch --depth=1 https://github.com/atto-lang/atto-source.js.git 77b9d2de62502a7ba817970acbe4846e4c3a5c91
+          git checkout --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = 77b9d2de62502a7ba817970acbe4846e4c3a5c91
+          git rev-parse HEAD^{tree}
+          test "$(git hash-object src/compiler.mjs)" = 13e8d471d666626a9fc0c22bf8146234fafac324
+          test "$(git hash-object tests/nominal-map-scalar-size.test.mjs)" = 4441bd6e89c80a26b72fb1116e33ef1ddb2a5bf2
+          test "$(git hash-object tests/fixtures/collection-subtypes-v1-candidate.json)" = 1cc0ae23fe56db7c3891d30881d28efa66619c21
+      - name: Map and Record subtype emitted guests
+        working-directory: guest-source
+        run: node --test tests/nominal-map-scalar-size.test.mjs tests/nominal-record-methods-scalar.test.mjs tests/nominal-record-method-parameters.test.mjs
+      - name: Full compiler regression
+        working-directory: guest-source
+        run: npm test
