@@ -77,11 +77,11 @@ jobs:
         run: |
           set -euo pipefail
           git init corpus
-          git -C corpus -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-platform-conformance.git 3631b3e941e449c8d38d3697d4a6d50d11b045f0
+          git -C corpus -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-platform-conformance.git 0373027b38798fb88af78fc65a2825bda8c83a5e
           git -C corpus checkout --detach FETCH_HEAD
-          test "$(git -C corpus rev-parse HEAD)" = 3631b3e941e449c8d38d3697d4a6d50d11b045f0
-          test "$(git -C corpus rev-parse HEAD^{tree})" = 70bf20ffa05c0ecd703a72923d852237a2465244
-          test "$(git -C corpus write-tree)" = 70bf20ffa05c0ecd703a72923d852237a2465244
+          test "$(git -C corpus rev-parse HEAD)" = 0373027b38798fb88af78fc65a2825bda8c83a5e
+          test "$(git -C corpus rev-parse HEAD^{tree})" = 151f41e56278719237b75af007ba8a28c6b6b796
+          test "$(git -C corpus write-tree)" = 151f41e56278719237b75af007ba8a28c6b6b796
           cd corpus
           node --test tests/copy-readonly-sharing-v1.test.mjs tests/copy-readonly-rust-wasm-runner.test.mjs
   rust:
@@ -137,11 +137,11 @@ jobs:
           test "$(git -C compiler rev-parse HEAD^{tree})" = "$TREE_SHA"
           test "$(git -C compiler write-tree)" = "$TREE_SHA"
           git init corpus
-          git -C corpus -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-platform-conformance.git 3631b3e941e449c8d38d3697d4a6d50d11b045f0
+          git -C corpus -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-platform-conformance.git 0373027b38798fb88af78fc65a2825bda8c83a5e
           git -C corpus checkout --detach FETCH_HEAD
-          test "$(git -C corpus rev-parse HEAD)" = 3631b3e941e449c8d38d3697d4a6d50d11b045f0
-          test "$(git -C corpus rev-parse HEAD^{tree})" = 70bf20ffa05c0ecd703a72923d852237a2465244
-          test "$(git -C corpus write-tree)" = 70bf20ffa05c0ecd703a72923d852237a2465244
+          test "$(git -C corpus rev-parse HEAD)" = 0373027b38798fb88af78fc65a2825bda8c83a5e
+          test "$(git -C corpus rev-parse HEAD^{tree})" = 151f41e56278719237b75af007ba8a28c6b6b796
+          test "$(git -C corpus write-tree)" = 151f41e56278719237b75af007ba8a28c6b6b796
       - name: Actual compiled portable corpus (failure is not a pass)
         env:
           HEAD_SHA: ${{ matrix.head }}
@@ -152,4 +152,4 @@ jobs:
           ROOT="$(realpath compiler)"
           (cd "$ROOT/$SUBDIR" && cargo build --locked --bin attoc)
           cd corpus
-          node scripts/run-copy-readonly-rust-wasm-v1.mjs "$ROOT" "$ROOT/$SUBDIR/target/debug/attoc" "$HEAD_SHA" "$TREE_SHA" 3631b3e941e449c8d38d3697d4a6d50d11b045f0 70bf20ffa05c0ecd703a72923d852237a2465244
+          node scripts/run-copy-readonly-rust-wasm-v1.mjs "$ROOT" "$ROOT/$SUBDIR/target/debug/attoc" "$HEAD_SHA" "$TREE_SHA" 0373027b38798fb88af78fc65a2825bda8c83a5e 151f41e56278719237b75af007ba8a28c6b6b796
