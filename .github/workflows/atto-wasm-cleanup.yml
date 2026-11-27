@@ -1,0 +1,77 @@
+name: Wasm sealed workspace repair focused exact-tree verification
+on:
+  push:
+    branches: ['ci/atto-wasm351-cleanup-exact-20261127']
+permissions: {}
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      GIT_TERMINAL_PROMPT: '0'
+      GIT_CONFIG_NOSYSTEM: '1'
+      GIT_CONFIG_GLOBAL: /dev/null
+    steps:
+      - name: Source-free capacity and exact public trees
+        shell: bash
+        run: |
+          set -euo pipefail
+          node -e 'require("node:assert/strict").equal(6*7,42)'
+          fetch_exact() {
+            local repo="$1" sha="$2" tree="$3" dir="$4"
+            git init "$dir"
+            git -C "$dir" -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 "https://github.com/atto-lang/$repo.git" "$sha"
+            git -C "$dir" checkout --detach FETCH_HEAD
+            test "$(git -C "$dir" rev-parse HEAD)" = "$sha"
+            test "$(git -C "$dir" rev-parse HEAD^{tree})" = "$tree"
+            git -C "$dir" fsck --full --strict
+            git -C "$dir" ls-tree -r HEAD | awk '$1 != "100644" && $1 != "100755" {bad=1} END{exit bad}'
+            test -z "$(git -C "$dir" status --porcelain)"
+            echo "EXACT_SOURCE $repo $sha $tree"
+          }
+          fetch_exact atto-source.wasm 8dd40f786fffbbafb47da5e465e43a3387bc6062 a367de5718a0320cddaa10a11039f71806a7fb75 source
+          fetch_exact atto-source.llvm 96fe5ee218d4e9bc10a386e3d54f1c475c44d32f 3d01d03d8dd4ebeb0a9e05a7f18511f173234bb8 llvm-source
+      - name: Exercise private sealed cleanup and external symlink boundary
+        working-directory: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import {mkdtemp,mkdir,writeFile,chmod,symlink,stat,readFile,rm} from 'node:fs/promises';
+          import {join} from 'node:path';
+          import {tmpdir} from 'node:os';
+          import {cleanupRealCompilerWorkspace} from './scripts/cleanup-real-compiler.mjs';
+          const root=await mkdtemp(join(tmpdir(),'sealed-cleanup-'));
+          const outside=await mkdtemp(join(tmpdir(),'external-control-'));
+          try {
+            await writeFile(join(outside,'sentinel'),'unchanged');
+            const release=join(root,'release');
+            await mkdir(release);
+            await writeFile(join(release,'artifact.json'),'sealed');
+            await symlink(outside,join(release,'external'));
+            await chmod(release,0o500);
+            await cleanupRealCompilerWorkspace(root);
+            await assert.rejects(stat(root),{code:'ENOENT'});
+            assert.equal(await readFile(join(outside,'sentinel'),'utf8'),'unchanged');
+            assert.equal((await stat(outside)).mode & 0o777,0o700);
+            console.log('PASS sealed cleanup; external directory untouched');
+          } finally { await rm(outside,{recursive:true,force:true}); }
+          JS
+      - name: Build real public LLVM compiler
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake clang lld llvm-dev
+          cmake -S llvm-source -B llvm-build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
+          cmake --build llvm-build --target oreslang-llvmc --parallel 2
+      - name: Execute focused guest matrices with cleanup repair
+        working-directory: source
+        run: |
+          set -euo pipefail
+          export ORESLANG_LLVM_COMPILER="$(realpath ../llvm-build/oreslang-llvmc)"
+          export ORESLANG_LLVM_COMPILER_SHA256="$(sha256sum "$ORESLANG_LLVM_COMPILER" | cut -d' ' -f1)"
+          export ORESLANG_LLVM_SOURCE_SHA=96fe5ee218d4e9bc10a386e3d54f1c475c44d32f
+          export ORESLANG_LLVM_SOURCE_TREE=3d01d03d8dd4ebeb0a9e05a7f18511f173234bb8
+          echo 'Exploratory public compiler pairing; no legacy pinned certification'
+          node --test tests/portable-scalar-parity-v1.test.mjs tests/portable-scalar-parity-v2.test.mjs tests/unary-plus-source-parity.test.mjs tests/canonical-no-percent-real-guest.test.mjs tests/native-scalar-zero-parity.test.mjs tests/numeric-source-parity.test.mjs
