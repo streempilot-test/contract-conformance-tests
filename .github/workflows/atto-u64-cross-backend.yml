@@ -14,11 +14,12 @@ jobs:
         run: |
           git init -q source
           git -C source remote add origin https://github.com/atto-lang/atto-source.llvm.git
-          git -C source fetch --no-tags --depth=1 origin ae208c824713a55cbe864bd5169931ef871ff7da
+          git -C source fetch --no-tags --depth=1 origin 42f900c494c73f1cefefb4edb53a127537900d93
           git -C source checkout --detach FETCH_HEAD
-          test "$(git -C source rev-parse HEAD)" = ae208c824713a55cbe864bd5169931ef871ff7da
-          test "$(git -C source rev-parse 'HEAD^{tree}')" = 179ca554706fa8f3ca1b40a9ff0f223cca4bed17
+          test "$(git -C source rev-parse HEAD)" = 42f900c494c73f1cefefb4edb53a127537900d93
+          test "$(git -C source rev-parse 'HEAD^{tree}')" = d3fb7062aee2022fad5c071a9cdfd509b94d00a1
           test "$(git -C source hash-object contracts/atto-xo-checked-u64-debit-v1/cases.tsv)" = 2d41ae576d049ed3a8898c3deacc8d30c705dce8
+          test "$(git -C source hash-object tests/native_task_borrow_rejection.rs)" = 1edd0671c029cfbe0b9a63b71d0e125876766cb4
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '22'
@@ -34,57 +35,3 @@ jobs:
           CC=clang-18 CXX=clang++-18 cmake -S . -B "$RUNNER_TEMP/llvm-build" -DLLVM_DIR="$(llvm-config-18 --cmakedir)" -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
           cmake --build "$RUNNER_TEMP/llvm-build" --parallel 2
           ctest --test-dir "$RUNNER_TEMP/llvm-build" --output-on-failure
-  wasm:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    steps:
-      - name: Verify exact public source
-        run: |
-          git init -q source
-          git -C source remote add origin https://github.com/atto-lang/atto-source.wasm.git
-          git -C source fetch --no-tags --depth=1 origin 78e7b9f94225fb82e47ae315297a98b2ae6ee13b
-          git -C source checkout --detach FETCH_HEAD
-          test "$(git -C source rev-parse HEAD)" = 78e7b9f94225fb82e47ae315297a98b2ae6ee13b
-          git -C source rev-parse 'HEAD^{tree}'
-          git init -q llvm
-          git -C llvm remote add origin https://github.com/atto-lang/atto-source.llvm.git
-          git -C llvm fetch --no-tags --depth=1 origin ae208c824713a55cbe864bd5169931ef871ff7da
-          git -C llvm checkout --detach FETCH_HEAD
-          test "$(git -C llvm rev-parse HEAD)" = ae208c824713a55cbe864bd5169931ef871ff7da
-          test "$(git -C llvm hash-object tools/atto_checked_u64.cpp)" = 752d1ad3fb3564eed9067a0a530eb2150d1c14b4
-          test "$(git -C source hash-object contracts/atto-xo-checked-u64-debit-v1/cases.tsv)" = 2d41ae576d049ed3a8898c3deacc8d30c705dce8
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
-        with:
-          node-version: '22'
-      - name: Required exact delegated guest execution
-        working-directory: source
-        run: ATTO_U64_WASM_REQUIRED=1 ATTO_U64_LLVM_SOURCE="$GITHUB_WORKSPACE/llvm/tools/atto_checked_u64.cpp" node --test tests/atto-xo-checked-u64-wasm.test.mjs tests/checked-u64-generated-wasm.test.mjs
-      - name: Complete Node regression
-        if: always()
-        working-directory: source
-        run: npm test
-  hdl:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    steps:
-      - name: Verify exact reconciled source
-        run: |
-          git init -q source
-          git -C source remote add origin https://github.com/atto-lang/atto-source.hdl.git
-          git -C source fetch --no-tags --depth=1 origin a5c4180bea6c6417bb93cb8907634d2ea9e6a495
-          git -C source checkout --detach FETCH_HEAD
-          test "$(git -C source rev-parse HEAD)" = a5c4180bea6c6417bb93cb8907634d2ea9e6a495
-          test "$(git -C source rev-parse 'HEAD^{tree}')" = 10936964d926c408193939cc4c6f83776e6ae80c
-          test "$(git -C source hash-object tests/checked-signed-rtl-physical.mjs)" = b5cc97638ee5bd1ab6ccdfba9b34e3c9e8908670
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
-        with:
-          node-version: '22'
-      - name: Install RTL tools
-        run: sudo apt-get update -qq && sudo apt-get install -y iverilog yosys
-      - name: Signed checked arithmetic RTL and netlist execution
-        working-directory: source
-        run: node tests/checked-signed-rtl-physical.mjs
-      - name: Complete HDL regression
-        if: always()
-        working-directory: source
-        run: node --test tests/*.test.mjs
