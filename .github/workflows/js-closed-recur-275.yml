@@ -1,0 +1,25 @@
+name: Exact independent JS state-loop guests
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/js-closed-recur-275.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  js:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Authenticate exact public source and run focused and complete suites
+        run: |
+          set -euo pipefail
+          git init src
+          git -C src -c credential.helper= -c http.extraHeader= fetch --depth=1 --no-tags https://github.com/atto-lang/atto-source.js.git 3007b4fa946d85232ba4b237a06c8ffc92e71b0d
+          git -C src checkout --detach FETCH_HEAD
+          test "$(git -C src rev-parse HEAD)" = 3007b4fa946d85232ba4b237a06c8ffc92e71b0d
+          test "$(git -C src write-tree)" = 578ee552f81983e51350e8e241e4d8e1a7c27a11
+          cd src
+          node --test tests/state-value-loop.test.mjs tests/stateless-value-loop.test.mjs
+          npm test
+          git diff --exit-code
