@@ -1,0 +1,57 @@
+name: LLVM exact native AOT audit and owning-return diagnostic
+on:
+  push:
+    branches: ['ci/atto-llvm953-auditor-debug-20261127']
+permissions: {}
+jobs:
+  native:
+    strategy:
+      fail-fast: false
+      matrix:
+        llvm: [19,23]
+    runs-on: macos-15
+    timeout-minutes: 40
+    env:
+      GIT_TERMINAL_PROMPT: '0'
+      GIT_CONFIG_NOSYSTEM: '1'
+      GIT_CONFIG_GLOBAL: /dev/null
+    steps:
+      - name: Verify exact public LLVM Git tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          git init source
+          cd source
+          git -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.llvm.git 6865dd98bb8b64f2fd1fdda1c0b6aa72e3ed21a6
+          git checkout --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = 6865dd98bb8b64f2fd1fdda1c0b6aa72e3ed21a6
+          test "$(git rev-parse HEAD^{tree})" = 5564f8407833cd010622c7f34b89df29b6b75a47
+          git fsck --full --strict
+          git ls-tree -r HEAD | awk '$1 != "100644" && $1 != "100755" {bad=1} END{exit bad}'
+          test -z "$(git status --porcelain)"
+      - name: Install exact toolchain and execute native parity including no-GC auditor
+        working-directory: source
+        shell: bash
+        env:
+          VERSION: ${{ matrix.llvm }}
+        run: |
+          set -euo pipefail
+          case "$VERSION" in 19) formula=llvm@19;; 23) formula=llvm;; *) exit 65;; esac
+          brew install "$formula"
+          test "$("$(brew --prefix "$formula")/bin/llvm-config" --version | cut -d. -f1)" = "$VERSION"
+          bash scripts/verify-native-class-string-macos.sh "$VERSION"
+      - name: Diagnose owning-array return exception without treating debugger as a pass
+        if: failure() && matrix.llvm == 23
+        working-directory: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          compiler="$PWD/build-class-string-llvm23/oreslang-llvmc"
+          test -x "$compiler"
+          work="$(mktemp -d)"
+          trap 'rm -rf -- "$work"' EXIT
+          cat > "$work/owning.atto" <<'ATTO'
+          define class OwnedArrayRecord as pub val Array<int> values;end fnc touch():void{return;}fnc build():OwnedArrayRecord{touch();val Array<int> values=new Array<int>();values.add(42);return new OwnedArrayRecord(values);}pub fnc main():int{val OwnedArrayRecord box=build();return box.values.get(0)==42?0:1;}
+          ATTO
+          echo 'DIAGNOSTIC ONLY; previous failed job remains failed'
+          lldb --batch -o 'breakpoint set -E c++' -o run -o 'bt all' -- "$compiler" "$work/owning.atto"
