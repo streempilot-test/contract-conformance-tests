@@ -92,11 +92,11 @@ jobs:
         run: |
           set -euo pipefail
           git init source
-          git -C source -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.rs.git fea62a91755921f1e78bf93adc1097ad3af79c6e
+          git -C source -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.rs.git 527b6ad200eadd419c795d4558be25081913e5be
           git -C source checkout --detach FETCH_HEAD
-          test "$(git -C source rev-parse HEAD)" = fea62a91755921f1e78bf93adc1097ad3af79c6e
-          test "$(git -C source rev-parse HEAD^{tree})" = 7c303f3336b45adf6ccc9f3dd06a08f66f207641
-          test "$(git -C source write-tree)" = 7c303f3336b45adf6ccc9f3dd06a08f66f207641
+          test "$(git -C source rev-parse HEAD)" = 527b6ad200eadd419c795d4558be25081913e5be
+          test "$(git -C source rev-parse HEAD^{tree})" = ebb6055880771a16580dad9fea250827f9d28a77
+          test "$(git -C source write-tree)" = ebb6055880771a16580dad9fea250827f9d28a77
       - name: Execute copy and current-main ownership regressions
         working-directory: source
         run: |
@@ -115,8 +115,8 @@ jobs:
       matrix:
         include:
           - repo: atto-source.rs
-            head: fea62a91755921f1e78bf93adc1097ad3af79c6e
-            tree: 7c303f3336b45adf6ccc9f3dd06a08f66f207641
+            head: 527b6ad200eadd419c795d4558be25081913e5be
+            tree: ebb6055880771a16580dad9fea250827f9d28a77
             subdir: .
           - repo: atto-source.llvm
             head: cbf1a5ccee8cfe3ea7f0aa76475ba2c9b4c3c29c
