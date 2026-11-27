@@ -1,0 +1,30 @@
+name: Atto JS generic Map 307 exact guest
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/atto-js-map-generic-307.yml'
+permissions:
+  contents: read
+jobs:
+  js:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Verify exact public compiler head and blobs
+        run: |
+          set -eu
+          git init guest-source
+          cd guest-source
+          git -c credential.helper= fetch --depth=1 https://github.com/atto-lang/atto-source.js.git 5b2f4a2c96417ec3ad2d60c56cefa8e042eb1618
+          git checkout --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = 5b2f4a2c96417ec3ad2d60c56cefa8e042eb1618
+          git rev-parse HEAD^{tree}
+          test "$(git hash-object src/compiler.mjs)" = 758e315ed6dd35deda1d1372c2d12558ef4d2d40
+          test "$(git hash-object tests/nominal-map-generic-inheritance.test.mjs)" = 05a9e46fdda8a933bea7354386d1ce369d6014cf
+          test "$(git hash-object tests/fixtures/collection-subtypes-v1-candidate.json)" = 1cc0ae23fe56db7c3891d30881d28efa66619c21
+      - name: Run Map and Record guest corpus
+        working-directory: guest-source
+        run: node --test tests/nominal-map-generic-inheritance.test.mjs tests/nominal-map-scalar-size.test.mjs tests/nominal-record-methods-scalar.test.mjs tests/nominal-record-method-parameters.test.mjs
+      - name: Full JS regression
+        working-directory: guest-source
+        run: npm test
