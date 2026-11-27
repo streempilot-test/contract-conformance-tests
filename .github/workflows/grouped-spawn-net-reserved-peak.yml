@@ -1,0 +1,32 @@
+name: Public exact-tree .NET actor reservation and native backing
+on:
+  push:
+    branches: [ci/grouped-spawn-net-reserved-peak-20261126]
+permissions: {}
+jobs:
+  net:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Anonymous immutable checkout
+        env:
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_GLOBAL: /dev/null
+        run: |
+          set -euo pipefail
+          git init source
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.net.git ba553c3131ec955071b024c480b7038f9718813a
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = ba553c3131ec955071b024c480b7038f9718813a
+          test "$(git -C source rev-parse HEAD^{tree})" = 9ac2f0e2ba8b3001de7a83aa48966d2ac9735773
+          test -z "$(git -C source status --porcelain)"
+          git -C source rev-parse HEAD HEAD^{tree}
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: '10.0.100'
+      - name: Managed compiler and actual unmanaged arena verification
+        working-directory: source
+        run: dotnet run --project verification/Ores.Net.Tests -c Release
+      - name: Evidence boundary
+        run: echo 'HOST_NATIVE_BACKING_ONLY; NO GROUPED SPAWN GUEST OR NATIVEAOT CLAIM'
