@@ -1,0 +1,47 @@
+name: Forge exact fixed pool CMake proof
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/atto-forge-fixed-pool-20261127.yml'
+permissions:
+  contents: read
+jobs:
+  forge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [g++, clang++]
+        mode: [optimized, sanitized]
+    steps:
+      - name: Verify exact public source identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.forge.git 653fdddef95842ec205aadf709fec6f64e0e43ee
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = 653fdddef95842ec205aadf709fec6f64e0e43ee
+          git -C source rev-parse HEAD^{tree}
+          test "$(git hash-object source/CMakeLists.txt)" = 80ed4ab18a5d849597fcd012798cfac4f7210594
+          test "$(git hash-object source/verification/fixed-pool/oreslang/runtime/FixedBufferReusePrototype.hpp)" = 737cc95fea7f5c37ca1e78e8497ef972de458b5b
+          test "$(git hash-object source/verification/fixed-pool/fixed_buffer_reuse_prototype_test.cpp)" = bc535cf8e5b8c945fe427159b1e075ed3ad82f18
+      - name: Configure real repository and run isolated host CTest
+        shell: bash
+        env:
+          CXX: ${{ matrix.compiler }}
+          MODE: ${{ matrix.mode }}
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1
+        run: |
+          set -euo pipefail
+          flags="-O2"
+          if [[ "$MODE" == sanitized ]]; then
+            flags="-O1 -g -fno-omit-frame-pointer -fsanitize=address,undefined"
+          fi
+          cmake -S source -B build -DBUILD_TESTING=ON -DCMAKE_CXX_FLAGS="$flags"
+          cmake --build build --target oresforge_fixed_pool_host_reference --parallel 2
+          ctest --test-dir build -R '^forge_fixed_pool_host_reference$' --no-tests=error -V
