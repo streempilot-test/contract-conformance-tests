@@ -1,0 +1,28 @@
+name: Atto conformance clean main baseline
+on:
+  push:
+    branches: [ci/atto-conformance-main-baseline-20261127]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  baseline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Fetch exact public baseline
+        run: |
+          git init source
+          git -C source fetch --depth=1 https://github.com/atto-lang/atto-platform-conformance.git d9b6f797f69759ddbf4e54e916398c20d0d8c955
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = d9b6f797f69759ddbf4e54e916398c20d0d8c955
+          test "$(git -C source rev-parse HEAD^{tree})" = d1cdd5e4628c562e60d1c05dc343b24fd092cc54
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Execute identical host suite on clean main
+        working-directory: source
+        run: npm test
