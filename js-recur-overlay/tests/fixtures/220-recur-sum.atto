@@ -1,0 +1,12 @@
+// expect-exit: 45
+// java: target-only
+pub fnc main(): int {
+  val total: int = loop (
+    val i: int = 0,
+    val sum: int = 0
+  ) {
+    if i >= 10 { break sum; }
+    recur(i + 1, sum + i);
+  };
+  return total;
+}

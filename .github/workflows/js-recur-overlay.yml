@@ -1,0 +1,68 @@
+name: Exact JS recur tree overlay
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/js-recur-overlay.yml'
+      - 'js-recur-overlay/**'
+permissions:
+  contents: read
+jobs:
+  js:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Reconstruct and authenticate exact public candidate tree
+        run: |
+          set -euo pipefail
+          git init src
+          git -C src -c credential.helper= -c http.extraHeader= fetch --depth=1 --no-tags https://github.com/atto-lang/atto-source.js.git refs/heads/main
+          git -C src checkout --detach FETCH_HEAD
+          git -C src rev-parse HEAD HEAD^{tree}
+          test "$(git -C src rev-parse HEAD)" = 64cb8e96f268a9d607ac8c188b152fc1d43220bc
+          test "$(git -C src write-tree)" = 8353488bba4bfe8b0ea1008bfa71ea6ab5440942
+          test "$(git hash-object "js-recur-overlay/src/program-ir-v2.mjs")" = 83e4f6fcb776edad84072f4ce85cc7e667b274c9
+          mkdir -p "src/$(dirname "src/program-ir-v2.mjs")"
+          cp "js-recur-overlay/src/program-ir-v2.mjs" "src/src/program-ir-v2.mjs"
+          git -C src add -- "src/program-ir-v2.mjs"
+          test "$(git hash-object "js-recur-overlay/src/program-v2.mjs")" = 395ac9b37fefd60199642d38d362429522e2b19d
+          mkdir -p "src/$(dirname "src/program-v2.mjs")"
+          cp "js-recur-overlay/src/program-v2.mjs" "src/src/program-v2.mjs"
+          git -C src add -- "src/program-v2.mjs"
+          test "$(git hash-object "js-recur-overlay/tests/fixtures/220-recur-sum.atto")" = adf984b7e7c7e1dd864460e89db50e47f0ee50dd
+          mkdir -p "src/$(dirname "tests/fixtures/220-recur-sum.atto")"
+          cp "js-recur-overlay/tests/fixtures/220-recur-sum.atto" "src/tests/fixtures/220-recur-sum.atto"
+          git -C src add -- "tests/fixtures/220-recur-sum.atto"
+          test "$(git hash-object "js-recur-overlay/tests/fixtures/221-recur-parallel-fibonacci.atto")" = 5ea7a41aa0052b55ff6d10eebce7561dbe78fe8b
+          mkdir -p "src/$(dirname "tests/fixtures/221-recur-parallel-fibonacci.atto")"
+          cp "js-recur-overlay/tests/fixtures/221-recur-parallel-fibonacci.atto" "src/tests/fixtures/221-recur-parallel-fibonacci.atto"
+          git -C src add -- "tests/fixtures/221-recur-parallel-fibonacci.atto"
+          test "$(git hash-object "js-recur-overlay/tests/fixtures/227-recur-source-order-init.atto")" = 4ec369653a9b333c61449a02b4c06fc8e51f4d07
+          mkdir -p "src/$(dirname "tests/fixtures/227-recur-source-order-init.atto")"
+          cp "js-recur-overlay/tests/fixtures/227-recur-source-order-init.atto" "src/tests/fixtures/227-recur-source-order-init.atto"
+          git -C src add -- "tests/fixtures/227-recur-source-order-init.atto"
+          test "$(git hash-object "js-recur-overlay/tests/fixtures/229-recur-constant-stack.atto")" = 33d71fc35d920b086cda844577228cb6bdb3d45e
+          mkdir -p "src/$(dirname "tests/fixtures/229-recur-constant-stack.atto")"
+          cp "js-recur-overlay/tests/fixtures/229-recur-constant-stack.atto" "src/tests/fixtures/229-recur-constant-stack.atto"
+          git -C src add -- "tests/fixtures/229-recur-constant-stack.atto"
+          test "$(git hash-object "js-recur-overlay/tests/scalar-recur-value-loop.test.mjs")" = 3176c67eeeb00956ead65ba0c3f72e6aa67a650c
+          mkdir -p "src/$(dirname "tests/scalar-recur-value-loop.test.mjs")"
+          cp "js-recur-overlay/tests/scalar-recur-value-loop.test.mjs" "src/tests/scalar-recur-value-loop.test.mjs"
+          git -C src add -- "tests/scalar-recur-value-loop.test.mjs"
+          git -C src write-tree
+          test "$(git -C src write-tree)" = 3e373b731e56b18c49dbf6123061526354f5ae28
+          git -C src diff --exit-code
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Execute actual guest and full regressions
+        run: |
+          set -euo pipefail
+          cd src
+          node --test tests/scalar-recur-value-loop.test.mjs
+          npm test
+          git diff --exit-code
+          test "$(git write-tree)" = 3e373b731e56b18c49dbf6123061526354f5ae28
