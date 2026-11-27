@@ -15,9 +15,9 @@ jobs:
             tree: 5ef40c23eed5708206e47268ee57fd1232dd03e7
             tests: ContextualIntGuestTest,AttoStatelessValueLoopTest
           - profile: recur
-            head: 5261b00c43d3aa3c274714ffbfdbd298a59f9aef
-            tree: 7387de1506e5d6b7ed0f1844f4aff47c4dc525f1
-            tests: AttoStateValueLoopTest
+            head: 068ddcccecb5e9f43306e9968dd79c76b461e4fa
+            tree: 7f9bb58e416072bcea48baedeea2d9db079d8d12
+            tests: AttoStateValueLoopTest,ContextualIntGuestTest,AttoStatelessValueLoopTest
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
