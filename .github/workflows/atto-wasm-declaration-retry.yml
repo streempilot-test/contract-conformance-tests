@@ -1,0 +1,33 @@
+name: Atto exact public WASM declaration retry
+on:
+  pull_request:
+    branches: [main]
+permissions: {}
+jobs:
+  declaration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Verify exact public source
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          git init atto-source.wasm
+          git -C atto-source.wasm -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.wasm.git 1a2914419950ff70886da6c7560d4ba5387c68cf
+          git -C atto-source.wasm -c core.hooksPath=/dev/null checkout --detach FETCH_HEAD
+          test "$(git -C atto-source.wasm rev-parse HEAD)" = 1a2914419950ff70886da6c7560d4ba5387c68cf
+          test "$(git -C atto-source.wasm write-tree)" = "$(git -C atto-source.wasm rev-parse 'HEAD^{tree}')"
+          test "$(git -C atto-source.wasm hash-object tools/repo-policy/src/main.rs)" = e3ac0a4d4b736cd2cff77698fe8d8a7fc4d91b1f
+          git -C atto-source.wasm diff --exit-code HEAD
+          git -C atto-source.wasm rev-parse HEAD 'HEAD^{tree}'
+      - name: Run repository declaration verifier
+        shell: bash
+        working-directory: atto-source.wasm
+        run: |
+          set -euo pipefail
+          # The source tool has no committed lockfile; match its native CI.
+          cargo test --manifest-path tools/repo-policy/Cargo.toml
+          cargo run --quiet --manifest-path tools/repo-policy/Cargo.toml --bin verify-integration-manifest -- --repository-root .
+          test -f tools/repo-policy/Cargo.lock
+          sha256sum tools/repo-policy/Cargo.lock
