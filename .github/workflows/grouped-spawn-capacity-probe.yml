@@ -1,0 +1,15 @@
+name: Public source-free runner capacity probe
+on:
+  push:
+    branches:
+      - ci/probe-grouped-spawn-20261126
+permissions: {}
+jobs:
+  capacity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Execute source-free runtime probe
+        run: |
+          node --version
+          node -e 'const assert=require("node:assert/strict"); assert.equal(64*1024*1024,67108864); assert.throws(()=>{throw Error("denied")},/denied/); console.log("SOURCE_FREE_RUNNER_CAPACITY_PROBE_PASS");'
