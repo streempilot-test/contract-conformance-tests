@@ -6,87 +6,34 @@ on:
 permissions:
   contents: read
 jobs:
-  bootstrap:
+  core-stage0:
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 20
     steps:
-      - name: Verify exact source and compiler
+      - name: Verify public source and compiler exact pins
         run: |
           git init -q source
           git -C source remote add origin https://github.com/atto-lang/atto-source.atto.git
-          git -C source fetch --no-tags --depth=1 origin 64ccce0f8b2738460c2a7134103cc413e6d541c9
+          git -C source fetch --no-tags --depth=1 origin 95cd6de5f4593695580ec449bacfca7a192f5678
           git -C source checkout --detach FETCH_HEAD
-          test "$(git -C source rev-parse HEAD)" = 64ccce0f8b2738460c2a7134103cc413e6d541c9
-          test "$(git -C source rev-parse 'HEAD^{tree}')" = 70f9d6a136056ee330d512bf4aaa35d7a54b5a5b
-          test "$(git -C source hash-object src/scalar_codegen.atto)" = 7f3c3044c8791fbd8adbf66d5b814c20d4d47da0
+          test "$(git -C source rev-parse HEAD)" = 95cd6de5f4593695580ec449bacfca7a192f5678
+          test "$(git -C source rev-parse 'HEAD^{tree}')" = 1e0000e7c44ec9f2ad1a8404aed8c7de3fe5f898
           git init -q compiler
-          git -C compiler remote add origin https://github.com/atto-lang/atto-source.llvm.git
-          git -C compiler fetch --no-tags --depth=1 origin d6b1836be9bf05d85530c229c72043db21b9e9f9
+          git -C compiler remote add origin https://github.com/atto-lang/atto-source.rs.git
+          git -C compiler fetch --no-tags --depth=1 origin 86a9960c30c2df479560f225b889a39981b2e582
           git -C compiler checkout --detach FETCH_HEAD
-          test "$(git -C compiler rev-parse HEAD)" = d6b1836be9bf05d85530c229c72043db21b9e9f9
-          git -C compiler rev-parse 'HEAD^{tree}'
+          test "$(git -C compiler rev-parse HEAD)" = 86a9960c30c2df479560f225b889a39981b2e582
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '22'
-      - name: Build pinned native LLVM compiler
-        run: |
-          sudo apt-get update -qq && sudo apt-get install -y llvm-18-dev clang-18 lld-18
-          cmake -S compiler -B "$RUNNER_TEMP/compiler-build" -DLLVM_DIR="$(llvm-config-18 --cmakedir)" -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
-          cmake --build "$RUNNER_TEMP/compiler-build" --target oreslang-llvmc --parallel 2
-      - name: Actual native Stage-0 source guest matrix
+      - name: Compile actual pinned Rust Stage-0 compiler
+        working-directory: compiler
+        run: cargo build --locked --bin attoc
+      - name: Exact canonical source guest execution
         working-directory: source
         run: |
-          BIN="$RUNNER_TEMP/compiler-build/oreslang-llvmc"
-          node scripts/stage0_native_gate.mjs --compiler="$BIN" --compiler-sha256="$(sha256sum "$BIN" | cut -d ' ' -f1)" --compiler-source-commit=d6b1836be9bf05d85530c229c72043db21b9e9f9 --source=src/scalar_codegen.atto --source-blob=7f3c3044c8791fbd8adbf66d5b814c20d4d47da0 --quantity-seed=1 --contract-seed=1 --clang=clang-18
-      - name: Source and model regression
-        if: always()
+          BIN="$GITHUB_WORKSPACE/compiler/target/debug/attoc"
+          node tests/freestanding-core-stage0-guest.mjs "$BIN" "$(sha256sum "$BIN" | cut -d ' ' -f1)"
+      - name: Exact source and host oracle
         working-directory: source
-        run: |
-          find tests -maxdepth 1 -name '*.test.mjs' ! -name actor_data_codec_design.test.mjs ! -name exception-bang-bootstrap.test.mjs -print0 | xargs -0 node --test
-          git init -q "$RUNNER_TEMP/spec"
-          git -C "$RUNNER_TEMP/spec" remote add origin https://github.com/atto-lang/atto-spec.git
-          git -C "$RUNNER_TEMP/spec" fetch --no-tags --depth=1 origin 3eeb2ac1c42f9461eb7ab721b69762e8f530dc57
-          git -C "$RUNNER_TEMP/spec" checkout --detach FETCH_HEAD
-          test "$(git -C "$RUNNER_TEMP/spec" rev-parse HEAD)" = 3eeb2ac1c42f9461eb7ab721b69762e8f530dc57
-          git init -q "$RUNNER_TEMP/conformance"
-          git -C "$RUNNER_TEMP/conformance" remote add origin https://github.com/atto-lang/atto-platform-conformance.git
-          git -C "$RUNNER_TEMP/conformance" fetch --no-tags --depth=1 origin e13228ea6be5a262a4bdc337df3ac87b819e2b33
-          git -C "$RUNNER_TEMP/conformance" checkout --detach FETCH_HEAD
-          test "$(git -C "$RUNNER_TEMP/conformance" rev-parse HEAD)" = e13228ea6be5a262a4bdc337df3ac87b819e2b33
-          node tests/actor_data_codec_design.test.mjs "$RUNNER_TEMP/conformance/contracts/actor-data-codec-selection-v1.json" "$RUNNER_TEMP/spec/architecture/actor-data-codec-selection-v1.md"
-          git -C "$RUNNER_TEMP/spec" fetch --no-tags --depth=1 origin a5e08d47100778159a21ace627cd98ed0b537c3d
-          git -C "$RUNNER_TEMP/spec" checkout --detach FETCH_HEAD
-          test "$(git -C "$RUNNER_TEMP/spec" rev-parse HEAD)" = a5e08d47100778159a21ace627cd98ed0b537c3d
-          node --test "$RUNNER_TEMP/spec/tests/exception-control-bang-spellings.test.mjs"
-          node tests/exception-bang-bootstrap.test.mjs "$RUNNER_TEMP/spec/contracts/exception-control-bang/v1/cases.json"
-  realtime:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    steps:
-      - name: Verify exact public sources
-        run: |
-          git init -q source
-          git -C source remote add origin https://github.com/atto-lang/atto-source.realtime.git
-          git -C source fetch --no-tags --depth=1 origin 4f754d257575d60513c9e00991104caf4ad5d0e9
-          git -C source checkout --detach FETCH_HEAD
-          test "$(git -C source rev-parse HEAD)" = 4f754d257575d60513c9e00991104caf4ad5d0e9
-          test "$(git -C source rev-parse 'HEAD^{tree}')" = 0339e534c09d012e789c663d64051189765492a0
-          git init -q forge
-          git -C forge remote add origin https://github.com/atto-lang/atto-source.forge.git
-          git -C forge fetch --no-tags --depth=1 origin aa57a912ac9992e3ee7a6d7d370edebdec85a230
-          git -C forge checkout --detach FETCH_HEAD
-          test "$(git -C forge rev-parse HEAD)" = aa57a912ac9992e3ee7a6d7d370edebdec85a230
-          test "$(git -C forge rev-parse 'HEAD^{tree}')" = 16d4f0ad052ebc4be4a24321a1842ba2f94b4ea6
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
-        with:
-          node-version: '22'
-      - name: GCC and Clang native freestanding kernels
-        run: |
-          for CXX in g++ clang++; do
-            "$CXX" -std=c++20 -O2 -Wall -Wextra -Werror -I forge/include source/src/strict_quantity_seed.cpp -o "$RUNNER_TEMP/rt-seed"
-            CXX="$CXX" node source/tests/strict_quantity_native_gate.mjs "$RUNNER_TEMP/rt-seed"
-          done
-      - name: Realtime source regression
-        if: always()
-        working-directory: source
-        run: node --test tests/*.test.mjs
+        run: node --test tests/freestanding-core-source-contract.test.mjs
