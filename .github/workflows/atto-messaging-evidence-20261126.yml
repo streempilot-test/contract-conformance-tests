@@ -1,0 +1,110 @@
+name: Atto exact messaging evidence and host parity
+on:
+  pull_request:
+    branches: [main]
+permissions: {}
+jobs:
+  benchmark:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Verify public source identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          git init source
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-benchmarks.git 59c4efdb5fc1fa2130b7421831a021f6c1b477c7
+          git -C source -c core.hooksPath=/dev/null checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = 59c4efdb5fc1fa2130b7421831a021f6c1b477c7
+          test "$(git -C source write-tree)" = "$(git -C source rev-parse 'HEAD^{tree}')"
+          test -z "$(git -C source status --porcelain --untracked-files=all)"
+          git -C source rev-parse HEAD 'HEAD^{tree}'
+      - name: Run scoped tests
+        working-directory: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object actor-messaging/validate.py)" = b1b730528dd59616ff86a119b048d188c758f656
+          test "$(git hash-object actor-messaging/README.md)" = 0ca115610a9a87010fb0525626f49293296f1f5d
+          python3 actor-messaging/validate.py --self-test
+          cd benchmark/web/sharkbench
+          python3 -m unittest -v test_probe
+          python3 -m py_compile adapters/jvm/transport_probe.py
+          bash -n adapters/jvm/run-transport.sh
+          (cd adapters/jvm && python3 -m unittest -v test_transport)
+  rust-host:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Verify public source identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          git init source
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.rs.git eaeb26d2185f59ff736631cfaecf85cb1b769c29
+          git -C source -c core.hooksPath=/dev/null checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = eaeb26d2185f59ff736631cfaecf85cb1b769c29
+          test "$(git -C source write-tree)" = "$(git -C source rev-parse 'HEAD^{tree}')"
+          test -z "$(git -C source status --porcelain --untracked-files=all)"
+          git -C source rev-parse HEAD 'HEAD^{tree}'
+      - name: Run scoped tests
+        working-directory: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --version
+          node --test tests/state-runtime.test.mjs tests/state-terminal-matrix.test.mjs tests/state-wasm-import-abi.test.mjs
+  wasm-host:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Verify public source identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          git init source
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.wasm.git 1a76ea4efb865ba3785df04e454a0418bd17ca36
+          git -C source -c core.hooksPath=/dev/null checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = 1a76ea4efb865ba3785df04e454a0418bd17ca36
+          test "$(git -C source write-tree)" = "$(git -C source rev-parse 'HEAD^{tree}')"
+          test -z "$(git -C source status --porcelain --untracked-files=all)"
+          git -C source rev-parse HEAD 'HEAD^{tree}'
+      - name: Run scoped tests
+        working-directory: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object tests/state-wasm-import-abi.test.mjs)" = 865f43af51a542e3522bd449b0e05541b110c966
+          node --version
+          node --test tests/state-trace-oracle.test.mjs tests/state-wasm-import-abi.test.mjs
+  forge-host:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Verify public source identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          git init source
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.forge.git c2304d7783da3b2e60d92c0f82f1846a275f3fba
+          git -C source -c core.hooksPath=/dev/null checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = c2304d7783da3b2e60d92c0f82f1846a275f3fba
+          test "$(git -C source write-tree)" = "$(git -C source rev-parse 'HEAD^{tree}')"
+          test -z "$(git -C source status --porcelain --untracked-files=all)"
+          git -C source rev-parse HEAD 'HEAD^{tree}'
+      - name: Run scoped tests
+        working-directory: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object verification/native_select_continuation_multi_owner_test.cpp)" = af5c54d7c37ce8d96881028c8d62fea2b47e5e65
+          for cxx in g++ clang++; do
+            for opt in O1 O2; do
+              "$cxx" -std=c++20 -"$opt" -g -Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined -fno-omit-frame-pointer -no-pie -pthread -Ishared verification/native_select_continuation_multi_owner_test.cpp -o /tmp/atto-owner
+              ASAN_OPTIONS=detect_leaks=1 UBSAN_OPTIONS=halt_on_error=1 /tmp/atto-owner
+            done
+          done
