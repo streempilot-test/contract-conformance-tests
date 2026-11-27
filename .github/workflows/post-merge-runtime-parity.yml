@@ -1,0 +1,102 @@
+name: Post-merge exact-tree runtime qualification
+on:
+  pull_request:
+    branches: [main]
+permissions: {}
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - lane: net
+            repo: atto-source.net
+            sha: 7d1824d81592bea69dc645e6e5a716ad20ab391d
+            tree: 68c0efb0670c56a17037ba72199409a8481eed1c
+          - lane: cranelift
+            repo: atto-source.cranelift
+            sha: 2437ce5d42257c61ba46229e14527e372b27b871
+            tree: d8fa32ba6c15bf1ffb402548afca50d6a17c6767
+          - lane: forge
+            repo: atto-source.forge
+            sha: a075fefb84bde2f9bf277ea8cf79c427ae853a5c
+            tree: ec924e7c9b90d7a4e320a45b19ac657d27cf1dfc
+          - lane: wasm
+            repo: atto-source.wasm
+            sha: ac059e1da994b999817347f1d00299ae7f010464
+            tree: cfe865e4e877ba431bd0b43cd2527c55951034e9
+    env:
+      GIT_TERMINAL_PROMPT: '0'
+      GIT_CONFIG_NOSYSTEM: '1'
+      GIT_CONFIG_GLOBAL: /dev/null
+      SOURCE_REPO: ${{ matrix.repo }}
+      SOURCE_SHA: ${{ matrix.sha }}
+      SOURCE_TREE: ${{ matrix.tree }}
+      LLVM_SHA: e43938a919ef56153b3f96cf14a57d5ea6781be4
+      LLVM_TREE: 08c5b3fa67a0ee0b78044d321849296e6fb1f179
+    steps:
+      - name: Verify independent exact public source pins
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/verified-fetch" <<'SH'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          repo="$1" sha="$2" tree="$3" dest="$4"
+          [[ "$sha" =~ ^[0-9a-f]{40}$ && "$tree" =~ ^[0-9a-f]{40}$ ]]
+          git init "$dest"
+          git -C "$dest" -c credential.helper= -c core.askPass= -c http.extraHeader= fetch --no-tags --depth=1 "https://github.com/atto-lang/$repo.git" "$sha"
+          git -C "$dest" checkout --detach FETCH_HEAD
+          test "$(git -C "$dest" rev-parse HEAD)" = "$sha"
+          test "$(git -C "$dest" rev-parse HEAD^{tree})" = "$tree"
+          git -C "$dest" fsck --no-dangling
+          test -z "$(git -C "$dest" status --porcelain)"
+          printf 'EXACT_SOURCE repo=%s sha=%s tree=%s\n' "$repo" "$sha" "$tree"
+          SH
+          chmod +x "$RUNNER_TEMP/verified-fetch"
+          "$RUNNER_TEMP/verified-fetch" "$SOURCE_REPO" "$SOURCE_SHA" "$SOURCE_TREE" source
+      - name: .NET compiler suite and NativeAOT select execution
+        if: matrix.lane == 'net'
+        working-directory: source
+        run: |
+          set -euo pipefail
+          dotnet --info
+          dotnet publish verification/Ores.Net.SelectProbe/Ores.Net.SelectProbe.csproj -c Release -r linux-x64 -warnaserror -o "$RUNNER_TEMP/select-aot"
+          "$RUNNER_TEMP/select-aot/Ores.Net.SelectProbe" | tee "$RUNNER_TEMP/select.log"
+          grep -F DOTNET_SELECT_NATIVE_PASS "$RUNNER_TEMP/select.log"
+          dotnet run --project verification/Ores.Net.Tests/Ores.Net.Tests.csproj -c Release
+          echo SCOPE=NET_HOST_SELECT_NATIVEAOT_AND_COMPILER_TESTS
+      - name: Cranelift full native regression and release build
+        if: matrix.lane == 'cranelift'
+        working-directory: source
+        run: |
+          set -euo pipefail
+          rustc --version
+          cargo test --locked --all-targets
+          cargo build --locked --release
+          echo SCOPE=CRANELIFT_NATIVE_REGRESSION_NOT_DYNAMIC_ACTOR_GUEST_CERTIFICATION
+      - name: Forge full native build and regression
+        if: matrix.lane == 'forge'
+        run: |
+          set -euo pipefail
+          cmake -S source -B forge-build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+          cmake --build forge-build --parallel 2
+          ctest --test-dir forge-build --output-on-failure --no-tests=error
+          echo SCOPE=FORGE_NATIVE_COMPILER_AND_RUNTIME_REGRESSION
+      - name: Wasm current main real compiler and guest execution
+        if: matrix.lane == 'wasm'
+        run: |
+          set -euo pipefail
+          "$RUNNER_TEMP/verified-fetch" atto-source.llvm "$LLVM_SHA" "$LLVM_TREE" llvm-source
+          sudo apt-get update -qq
+          sudo apt-get install -y llvm-dev clang lld ninja-build
+          cmake -S llvm-source -B llvm-build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
+          cmake --build llvm-build --target oreslang-llvmc --parallel 2
+          export ORESLANG_LLVM_SOURCE_SHA="$LLVM_SHA"
+          export ORESLANG_LLVM_COMPILER="$PWD/llvm-build/oreslang-llvmc"
+          export ORESLANG_LLVM_COMPILER_SHA256="$(sha256sum "$ORESLANG_LLVM_COMPILER" | cut -d ' ' -f1)"
+          cd source
+          npm run test:real-pooled-actors
+          npm test
+          echo SCOPE=MAINLINE_WASM_MANDATORY_REAL_POOLED_ACTORS
