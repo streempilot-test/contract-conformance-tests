@@ -1,0 +1,40 @@
+name: Exact public tuple boundary and conditional contract
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/loop-header-contract.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  tuple-boundary:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Authenticate and test actual Rust frontend boundary
+        run: |
+          set -euo pipefail
+          git init src
+          git -C src -c credential.helper= -c http.extraHeader= fetch --depth=1 --no-tags https://github.com/atto-lang/atto-source.rs.git 04a152f13b540298d24febb1aff345651e61416d
+          git -C src checkout --detach FETCH_HEAD
+          test "$(git -C src rev-parse HEAD)" = 04a152f13b540298d24febb1aff345651e61416d
+          test "$(git -C src rev-parse HEAD^{tree})" = 8b2973bf7fc63f826dceffcaa39e055738c2a9ae
+          cd src
+          rustup toolchain install 1.85.1 --profile minimal
+          cargo +1.85.1 test --locked --test value_loop_tuple_boundary --test tuple_binding_admission --test tuple_binding_adversarial
+          git diff --exit-code
+  conditionals:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Authenticate and execute conditional contract
+        run: |
+          set -euo pipefail
+          git init src
+          git -C src -c credential.helper= -c http.extraHeader= fetch --depth=1 --no-tags https://github.com/atto-lang/atto-spec.git aae2f21d934b743f7f24dac2933046d8711b4a03
+          git -C src checkout --detach FETCH_HEAD
+          test "$(git -C src rev-parse HEAD)" = aae2f21d934b743f7f24dac2933046d8711b4a03
+          test "$(git -C src rev-parse HEAD^{tree})" = 7fb3cba28efb8e8069afb44ffe19537a07ebc0fe
+          cd src
+          node --test tests/conditional-expression-v2-contract.test.mjs
+          git diff --exit-code
