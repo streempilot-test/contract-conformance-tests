@@ -1,0 +1,34 @@
+name: Dotnet FIFO current-main requalification
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/net-control-fifo-current-main-20261127.yml']
+permissions:
+  contents: read
+jobs:
+  net:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Fetch exact public integrated source
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.net.git 958da5d47578912688610c8d704508932796874f
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = 958da5d47578912688610c8d704508932796874f
+          git -C source rev-parse HEAD^{tree}
+          test "$(git hash-object source/runtime/Ores.Net.Runtime/ControlPlaneArena32.cs)" = 288ad37e9377d884bf635115383b7bc87cb7038e
+          test "$(git hash-object source/verification/Ores.Net.ControlPlaneArenaProbe/Program.cs)" = d2e201d0932a8ea870af5b1de05734e40ea27ab0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Run real CoreCLR and NativeAOT regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd source
+          bash verification/Ores.Net.ControlPlaneArenaProbe/run-host-probe.sh
+          git diff --exit-code
