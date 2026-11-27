@@ -11,10 +11,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - backend: llvm
-            pr: 1098
-            head: 35a89532869f708f1a9afa3e6f9c7367d03dd77a
-            tree: ff350bb56d1584a5d9fbf3d69a0227d5c79dc2a9
+          - backend: cranelift
+            pr: 229
+            head: 4471e34cf792822df83ec263fc63cc43bbdd4ca1
+            tree: 863c85c7a3a5e88f9e77b447343b58f2ea0b7630
     env:
       BACKEND: ${{ matrix.backend }}
       SOURCE_HEAD: ${{ matrix.head }}
@@ -58,6 +58,23 @@ jobs:
           cargo --version
           cargo test --locked
           cargo clippy --locked --all-targets -- -D warnings
+          cargo build --locked --bin orescranelift
+          dir="$RUNNER_TEMP/implicit"
+          mkdir -p "$dir"
+          printf '%s\n' 'pub fnc main() -> int {return 42000<Millimeter>.to_unit<Meter>()/1<Meter>;}' > "$dir/guest.atto"
+          "$CARGO_TARGET_DIR/debug/orescranelift" emit-object "$dir/guest.atto" > "$dir/guest.o"
+          cat > "$dir/host.c" <<'EOF'
+          #include <stdint.h>
+          #include <assert.h>
+          extern int32_t oreslang_scalar_entry(int64_t,int64_t,int64_t,int64_t,int64_t*);
+          int main(void){int64_t out=123;assert(oreslang_scalar_entry(0,0,0,0,&out)==0);assert(out==42);}
+          EOF
+          cc -std=c11 -Wall -Werror "$dir/host.c" "$dir/guest.o" -o "$dir/guest"
+          "$dir/guest"
+          printf '%s\n' 'pub fnc main() -> int {return 42<Meter>/1<Second>;}' > "$dir/bad.atto"
+          if "$CARGO_TARGET_DIR/debug/orescranelift" emit-object "$dir/bad.atto" > "$dir/bad.o"; then exit 1; fi
+          test ! -s "$dir/bad.o"
+          echo CRANELIFT_IMPLICIT_GUEST_PASS
       - name: Verify tracked source unchanged
         shell: bash
         run: |
