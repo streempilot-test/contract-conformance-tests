@@ -48,10 +48,10 @@ jobs:
           set -euo pipefail
           git init -q source
           git -C source remote add origin https://github.com/atto-lang/atto-source.llvm.git
-          git -C source fetch --no-tags --depth=1 origin 7905540dcc7a8326d8900356db7aa78f86ba8b9f
+          git -C source fetch --no-tags --depth=1 origin 08aceb74a97db11ec163fbd958cc474ab8f35bfa
           git -C source checkout --detach FETCH_HEAD
-          test "$(git -C source rev-parse HEAD)" = 7905540dcc7a8326d8900356db7aa78f86ba8b9f
-          test "$(git -C source rev-parse 'HEAD^{tree}')" = 5dee4422e49d6102aead8566ee991cc3c732642a
+          test "$(git -C source rev-parse HEAD)" = 08aceb74a97db11ec163fbd958cc474ab8f35bfa
+          test "$(git -C source rev-parse 'HEAD^{tree}')" = 0c18170858a7c48171b61ace67623f03eabdf724
           git -C source rev-parse HEAD 'HEAD^{tree}'
       - name: Install source-pinned native toolchain
         run: |
