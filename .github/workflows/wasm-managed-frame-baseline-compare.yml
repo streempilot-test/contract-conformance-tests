@@ -1,0 +1,75 @@
+name: Wasm managed-frame baseline differential
+on:
+  push:
+    branches: [ci/wasm-managed-frame-baseline-compare-20261127]
+    paths: [.github/workflows/wasm-managed-frame-baseline-compare.yml]
+permissions: {}
+jobs:
+  real-wasm-actor:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - name: Fetch and verify exact current public LLVM and Wasm source trees
+        run: |
+          set -euo pipefail
+          clone_exact() {
+            local repo="$1" head="$2" tree="$3" dst="$4"
+            git init -q "$dst"
+            git -C "$dst" -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 "https://github.com/atto-lang/$repo.git" "$head"
+            git -C "$dst" checkout --detach FETCH_HEAD
+            test "$(git -C "$dst" rev-parse HEAD)" = "$head"
+            test "$(git -C "$dst" rev-parse 'HEAD^{tree}')" = "$tree"
+            git -C "$dst" diff --exit-code HEAD --
+          }
+          clone_exact atto-source.llvm 0b953417f002919dec5dc129e8c97428bd2d3900 8b7b45a3cfb5babdbf848dde545686eb1771f098 compiler
+          clone_exact atto-source.wasm bee352485b7d5d925346875971aa1892a9db0aae c50e27830f2fabb7fbbd6af345b81d9ca773318d host
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Execute actual host frame and retirement controls
+        working-directory: host
+        run: |
+          set -euo pipefail
+          node --test tests/pooled-actor-frame-turn.test.mjs tests/actor-frame-stacks.test.mjs tests/actor-frame-stack-primordials.test.mjs tests/actor-arena-primordial-scrub.test.mjs tests/pooled-actors.test.mjs tests/real-pooled-gate-admission.test.mjs
+      - name: Build genuine native LLVM source compiler
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y llvm-18-dev clang-18 lld-18
+          cmake -S compiler -B "$RUNNER_TEMP/compiler-build" -DLLVM_DIR="$(llvm-config-18 --cmakedir)" -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
+          cmake --build "$RUNNER_TEMP/compiler-build" --target oreslang-llvmc --parallel 2
+      - name: Compare current and candidate full suite under same compiler environment
+        run: |
+          set -euo pipefail
+          git init -q baseline
+          git -C baseline -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.wasm.git 4feda3bdf7a134ca8795a2a232a678fb144fa454
+          git -C baseline checkout --detach FETCH_HEAD
+          test "$(git -C baseline rev-parse 'HEAD^{tree}')" = 43901e306c68ea9aaf57e0233f57f20aee9b0632
+          test "$(git -C host rev-parse 'HEAD^{tree}')" = c50e27830f2fabb7fbbd6af345b81d9ca773318d
+          export ORESLANG_LLVM_COMPILER="$RUNNER_TEMP/compiler-build/oreslang-llvmc"
+          export ORESLANG_LLVM_COMPILER_SHA256="$(sha256sum "$ORESLANG_LLVM_COMPILER" | cut -d ' ' -f1)"
+          export CLANG=clang-18
+          for dir in baseline host; do
+            set +e
+            (cd "$dir"; npm test) > "$RUNNER_TEMP/$dir.log" 2>&1
+            status=$?
+            set -e
+            echo "COMPILER_ENABLED_$dir status=$status"
+            grep -E '^# (tests|pass|fail|skipped|cancelled) ' "$RUNNER_TEMP/$dir.log" | tail -5
+            grep -E '^not ok [0-9]+ - ' "$RUNNER_TEMP/$dir.log" | sed -E 's/^not ok [0-9]+ - //' | sort > "$RUNNER_TEMP/$dir.failures" || true
+          done
+          echo "BASELINE_FAILURES:"
+          cat "$RUNNER_TEMP/baseline.failures"
+          echo "CANDIDATE_ONLY_FAILURES:"
+          comm -13 "$RUNNER_TEMP/baseline.failures" "$RUNNER_TEMP/host.failures" | tee "$RUNNER_TEMP/new.failures"
+          echo "BASELINE_ONLY_FAILURES:"
+          comm -23 "$RUNNER_TEMP/baseline.failures" "$RUNNER_TEMP/host.failures"
+          test ! -s "$RUNNER_TEMP/new.failures"
+          for dir in baseline host; do
+            (cd "$dir"; env -u ORESLANG_LLVM_COMPILER -u ORESLANG_LLVM_COMPILER_SHA256 npm test) > "$RUNNER_TEMP/$dir.host.log" 2>&1
+            echo "HOST_ONLY_$dir"
+            grep -E '^# (tests|pass|fail|skipped|cancelled) ' "$RUNNER_TEMP/$dir.host.log" | tail -5
+          done
+          git -C baseline diff --exit-code HEAD --
+          git -C host diff --exit-code HEAD --
+          echo "DIFFERENTIAL_TREES_VERIFIED=43901e306c68ea9aaf57e0233f57f20aee9b0632,c50e27830f2fabb7fbbd6af345b81d9ca773318d"
