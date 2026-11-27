@@ -17,8 +17,8 @@ jobs:
           - cc: clang
             cxx: clang++
     env:
-      SOURCE_HEAD: b0e24c409f1d9c4bb76fb91420f74e4f8c441904
-      SOURCE_TREE: 5c55d4b37d873176ce581b34dedcdd29ac73f241
+      SOURCE_HEAD: 2d10ea9f1d544a63bc6ac0da3d7d792d53137754
+      SOURCE_TREE: 47367a4984ac5710016e11474858a1bcf71962be
       CC: ${{ matrix.cc }}
       CXX: ${{ matrix.cxx }}
       GIT_TERMINAL_PROMPT: '0'
@@ -38,8 +38,8 @@ jobs:
         run: |
           set -euo pipefail
           cmake -S . -B "$RUNNER_TEMP/forge" -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON -DATTO_FORGE_SANITIZERS=ON
-          cmake --build "$RUNNER_TEMP/forge" --parallel 2 --target forge_scalar pointer_local_typed_test reusable_slot_verifier_test physical_layout_test
-          ctest --test-dir "$RUNNER_TEMP/forge" --output-on-failure -R '^(pointer_local_typed_test|reusable_slot_verifier_test|pointer_local_native_guests|physical_layout_test)$'
+          cmake --build "$RUNNER_TEMP/forge" --parallel 2 --target forge_scalar pointer_local_typed_test reusable_slot_verifier_test physical_layout_test scalar_parser_test
+          ctest --test-dir "$RUNNER_TEMP/forge" --output-on-failure -R '^(pointer_local_typed_test|reusable_slot_verifier_test|pointer_local_native_guests|physical_layout_test|scalar_parser_test)$'
       - name: Verify source unchanged after tests
         run: |
           set -euo pipefail
