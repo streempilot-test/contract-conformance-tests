@@ -1,0 +1,70 @@
+name: Browser flat copy and Java snapshot generation exact tests
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/copy-browser-java-generations.yml']
+permissions:
+  contents: read
+jobs:
+  browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Fetch anonymous exact public compiler and corpus
+        run: |
+          set -euo pipefail
+          git init compiler
+          git -C compiler -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.llvm.git 0f260d772e31ffe699f7e213f3fab38cf0cb8d57
+          git -C compiler checkout --detach FETCH_HEAD
+          test "$(git -C compiler rev-parse HEAD)" = 0f260d772e31ffe699f7e213f3fab38cf0cb8d57
+          test "$(git -C compiler rev-parse HEAD^{tree})" = 6c3910c8b3000ef3ac76ea2f6d8819328ab7f09a
+          test "$(git -C compiler write-tree)" = 6c3910c8b3000ef3ac76ea2f6d8819328ab7f09a
+      - name: Build actual compiler and execute focused copy guests and regressions
+        working-directory: compiler/frontend
+        run: |
+          set -euo pipefail
+          cargo build --locked --bin attoc
+          node tests/copy_modes_guest.mjs
+          cargo test --locked --lib
+          cargo test --locked --test struct_with_target
+          rustup target add wasm32-unknown-unknown
+          cargo build --locked --release --target wasm32-unknown-unknown --lib
+  java:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Fetch and pin exact public Java source
+        run: |
+          set -euo pipefail
+          git init source
+          git -C source -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.java.git 8d00e7e34319673716f47a5c5e9caf3357da0a34
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = 8d00e7e34319673716f47a5c5e9caf3357da0a34
+          test "$(git -C source rev-parse HEAD^{tree})" = e789405d0798aef04640df3d3073e3ee666bec6d
+          test "$(git -C source write-tree)" = e789405d0798aef04640df3d3073e3ee666bec6d
+      - uses: graalvm/setup-graalvm@27b360dbb857524eaf0b4c4cef364d38e5b4f173
+        with:
+          version: '25.3'
+          java-version: '25'
+          distribution: graalvm
+      - name: Run strict snapshot component and targeted JUnit
+        working-directory: source
+        run: |
+          set -euo pipefail
+          javac -Xlint:all -Werror -d "$RUNNER_TEMP/snapshot" src/main/java/dev/oreslang/types/GuestClassSlots.java src/main/java/dev/oreslang/types/CopyScalarAdmission.java tests/graph-topology-host/ShallowSnapshotHarness.java
+          java -Xss256k -cp "$RUNNER_TEMP/snapshot" ShallowSnapshotHarness
+          mvn -B -ntp -Dtest=DerivedCopyPlanGuestTest,CopyPolicyCompilerTest,OwnershipAndClosureTest,DerivedGraphCopyPlanTest,GraphCopyTransactionTest,CopyPlanCacheTest,GuestClassGraphLeaseTest -DfailIfNoTests=true -Dsurefire.failIfNoSpecifiedTests=true test
+  corpus:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Verify latest public fixture tree and run registry tests
+        run: |
+          set -euo pipefail
+          git init corpus
+          git -C corpus -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-platform-conformance.git ab6a52c462d0a11a3f1664e4eb85a7e511954d87
+          git -C corpus checkout --detach FETCH_HEAD
+          test "$(git -C corpus rev-parse HEAD)" = ab6a52c462d0a11a3f1664e4eb85a7e511954d87
+          test "$(git -C corpus rev-parse HEAD^{tree})" = a92047523d52a32887ca58ebcf2d019fcf5f47a4
+          test "$(git -C corpus write-tree)" = a92047523d52a32887ca58ebcf2d019fcf5f47a4
+          cd corpus
+          node --test tests/copy-readonly-sharing-v1.test.mjs tests/copy-readonly-rust-wasm-runner.test.mjs
