@@ -1,0 +1,27 @@
+name: Exact inferred scalar loop guest gate
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/inferred-scalar-loop.yml'
+permissions:
+  contents: read
+jobs:
+  rust:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Authenticate public source and execute actual compiler suite
+        run: |
+          set -euo pipefail
+          git init src
+          git -C src -c credential.helper= -c http.extraHeader= fetch --depth=1 --no-tags https://github.com/atto-lang/atto-source.rs.git a200c833dbde5800218aeecc4d76aec8d7341e4d
+          git -C src checkout --detach FETCH_HEAD
+          test "$(git -C src rev-parse HEAD)" = a200c833dbde5800218aeecc4d76aec8d7341e4d
+          test "$(git -C src write-tree)" = 93a95e57182a721baa220c2549e3dc54654f51a0
+          cd src
+          rustup toolchain install 1.85.1 --profile minimal --target wasm32-unknown-unknown
+          cargo +1.85.1 build --locked --release --bin attoc
+          cargo +1.85.1 rustc --locked --release --lib --target wasm32-unknown-unknown --crate-type cdylib -- -C link-arg=--max-memory=67108864
+          ATTOC=target/release/attoc node tests/conformance.mjs
+          cargo +1.85.1 test --locked --test value_loop_tuple_boundary --test tuple_binding_admission --test grouped_spawn_admission
+          git diff --exit-code
