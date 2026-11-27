@@ -12,8 +12,8 @@ jobs:
         include:
           - backend: java
             repo: atto-lang/atto-source.java
-            head: 035d5c1475f106ad31b58f3996f12e8913ad9cc1
-            tree: c2aec96692fb07facdb8c98d0d268da75150bdca
+            head: 4362fa848e5b0bef6eaa7e180ae44167bafd8948
+            tree: 5f1823543e2b7f73737bc969dae6c2ed06fc510f
           - backend: rust
             repo: atto-lang/atto-source.rs
             head: eae46d5b767dd22bc4a82657dd7a7e3199722243
@@ -50,6 +50,7 @@ jobs:
           java -version
           mkdir -p target/grouped-spawn-host
           javac --release 21 -d target/grouped-spawn-host \
+            src/main/java/dev/oreslang/runtime/ActorStartupPayload.java \
             src/main/java/dev/oreslang/runtime/ActorSpawnReservation.java \
             src/test/java/dev/oreslang/runtime/ActorSpawnReservationSmoke.java
           java -cp target/grouped-spawn-host dev.oreslang.runtime.ActorSpawnReservationSmoke
@@ -60,7 +61,7 @@ jobs:
           set -euo pipefail
           export JAVA_HOME="$JAVA_HOME_21_X64"
           export PATH="$JAVA_HOME/bin:$PATH"
-          mvn -B -ntp -Dtest=GroupedActorSpawnParserAdmissionTest,ParserTest test
+          mvn -B -ntp -Dtest=GroupedActorSpawnParserAdmissionTest,ParserTest,ActorStartupPayloadTest test
       - name: Rust production parser admission
         if: matrix.backend == 'rust'
         working-directory: source
