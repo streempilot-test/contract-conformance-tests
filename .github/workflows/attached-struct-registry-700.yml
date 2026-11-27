@@ -1,0 +1,83 @@
+name: Exact attached-struct corpus actual compiler observers
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/attached-struct-registry-700.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  rs:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Authenticate public registry and compiler, execute both real guests
+        run: |
+          set -euo pipefail
+          exact() {
+            git init "$1"
+            git -C "$1" -c credential.helper= -c http.extraHeader= fetch --depth=1 --no-tags "https://github.com/atto-lang/$2.git" "$3"
+            git -C "$1" checkout --detach FETCH_HEAD
+            test "$(git -C "$1" rev-parse HEAD)" = "$3"
+            test "$(git -C "$1" write-tree)" = "$4"
+          }
+          exact corpus atto-platform-conformance c196a575dc5249f57c013013d384ad0b8b02309c bac51327d3fc9c53afd0c0bead885f3e9c5240ae
+          exact compiler atto-source.rs c2ff8e8369e398eee018db1a1c1f45f27bcda428 910e12faf393e3503f5913cfb289066ffa7214c4
+          rustup toolchain install 1.85.1 --profile minimal
+          cd compiler
+          cargo +1.85.1 build --locked --release --bin attoc
+          export COMPILER="$PWD/target/release/attoc"
+          cd ../corpus
+          node tests/run-attached-struct-seven-target.mjs wasm "$COMPILER"
+          node tests/run-attached-struct-seven-target.mjs js "$COMPILER"
+          git diff --exit-code
+  cranelift:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Authenticate public registry and native compiler, execute real objects
+        run: |
+          set -euo pipefail
+          exact() {
+            git init "$1"
+            git -C "$1" -c credential.helper= -c http.extraHeader= fetch --depth=1 --no-tags "https://github.com/atto-lang/$2.git" "$3"
+            git -C "$1" checkout --detach FETCH_HEAD
+            test "$(git -C "$1" rev-parse HEAD)" = "$3"
+            test "$(git -C "$1" write-tree)" = "$4"
+          }
+          exact corpus atto-platform-conformance c196a575dc5249f57c013013d384ad0b8b02309c bac51327d3fc9c53afd0c0bead885f3e9c5240ae
+          exact compiler atto-source.cranelift 777df67ed6fc9712eebd1a220e283f9d3db5bfa0 79e75088a3b61114056d9725fcd76b77e1b694ea
+          rustup toolchain install stable --profile minimal
+          cd compiler
+          cargo +stable build --locked --release --bin orescranelift
+          export COMPILER="$PWD/target/release/orescranelift"
+          cd ../corpus
+          node tests/run-attached-struct-seven-target.mjs cranelift "$COMPILER"
+          git diff --exit-code
+  net:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Authenticate public inputs
+        run: |
+          set -euo pipefail
+          exact() {
+            git init "$1"
+            git -C "$1" -c credential.helper= -c http.extraHeader= fetch --depth=1 --no-tags "https://github.com/atto-lang/$2.git" "$3"
+            git -C "$1" checkout --detach FETCH_HEAD
+            test "$(git -C "$1" rev-parse HEAD)" = "$3"
+            test "$(git -C "$1" write-tree)" = "$4"
+          }
+          exact corpus atto-platform-conformance c196a575dc5249f57c013013d384ad0b8b02309c bac51327d3fc9c53afd0c0bead885f3e9c5240ae
+          exact compiler atto-source.net 412fcf7af2299a748b8a49eef738b46898fc4f62 c552f71b465a984a2204c582d08e2a97d6a9955c
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - name: Execute actual shared .NET NativeAOT observer
+        run: |
+          set -euo pipefail
+          cd compiler
+          bash ../corpus/tests/run-attached-struct-seven-target-net.sh
+          git diff --exit-code
