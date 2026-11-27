@@ -1,0 +1,8 @@
+// expect-exit: 13
+// java: target-only
+pub fnc main(): int {
+  return loop (val a: int = 1, val b: int = 2, val n: int = 0) {
+    if n >= 5 { break a; }
+    recur(b, a + b, n + 1);
+  };
+}

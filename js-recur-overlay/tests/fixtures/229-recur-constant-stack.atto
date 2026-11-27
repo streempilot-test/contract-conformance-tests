@@ -1,0 +1,8 @@
+// expect-exit: 100000
+// java: target-only
+pub fnc main(): int {
+  return loop (val n: int = 0) {
+    if n >= 100000 { break n; }
+    recur(n + 1);
+  };
+}
