@@ -18,11 +18,11 @@ jobs:
       BASE_TREE: 5ee63a15eb0baa64c6763b6f3ad5437f00eda8a9
       GIT_TERMINAL_PROMPT: "0"
       GIT_CONFIG_NOSYSTEM: "1"
-      GIT_CONFIG_GLOBAL: /dev/null
     steps:
       - name: Fetch publicly readable immutable revisions without credentials
         env:
           MODE: ${{ matrix.mode }}
+          GIT_CONFIG_GLOBAL: /dev/null
         run: |
           set -euo pipefail
           git init source
