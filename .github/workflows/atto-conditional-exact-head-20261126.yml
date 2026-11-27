@@ -15,8 +15,8 @@ jobs:
         include:
           - lane: rust
             repo: atto-source.rs
-            head: 18c4444704f23874fc6c7fab129be67d3dedc606
-            tree: 7bd320f19522ce46e3680a3c5bca8e05ac1b1454
+            head: 188b25dbd0f3c35da9d519093b6832cbafc2f388
+            tree: aff36681d0d13f9713bfee39908c96e002519020
           - lane: clippy
             repo: atto-source.rs
             head: faa51a6e4e15166a3de59ae44d536ef11aaf0af3
