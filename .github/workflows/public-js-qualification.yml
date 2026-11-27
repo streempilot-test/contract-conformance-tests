@@ -1,0 +1,35 @@
+name: Public Atto JavaScript exact-head qualification
+on:
+  push:
+    branches: ['ci/public-js-checked-unwrap-ddc76bc']
+permissions: {}
+jobs:
+  js:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Verify public source identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          git init source
+          git -C source -c credential.helper= fetch --depth=1 https://github.com/atto-lang/atto-source.js.git ddc76bcc676d0d23bc5b7c77ad79fc7fa6e6274e
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = ddc76bcc676d0d23bc5b7c77ad79fc7fa6e6274e
+          git -C source rev-parse 'HEAD^{tree}'
+          test -z "$(git -C source status --porcelain)"
+      - name: Run canonical guests and typed regressions
+        working-directory: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --version
+          node --test tests/shared-checked-unwrap-v6-remaining-guests.test.mjs tests/typed-bool-trap.test.mjs tests/typed-inline-sync-task.test.mjs tests/typed-nested-option-trap.test.mjs tests/typed-stdout-capability.test.mjs tests/typed-string-result-unwrap.test.mjs
+      - name: Run full Node suite
+        working-directory: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm test
+          echo PUBLIC_JS_EXACT_HEAD_QUALIFICATION_PASS
