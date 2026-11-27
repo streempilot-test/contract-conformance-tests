@@ -1,0 +1,1 @@
+pub fnc main(): int { const int v = 7; return match |v| over on 0 -> 1, on _ -> v * 6 end; }
