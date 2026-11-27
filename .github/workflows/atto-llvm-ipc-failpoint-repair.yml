@@ -1,0 +1,38 @@
+name: Atto LLVM exact IPC failpoint repair qualification
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/atto-llvm-ipc-failpoint-repair.yml']
+permissions:
+  contents: read
+jobs:
+  native:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Verify exact public source
+        run: |
+          git init -q source
+          git -C source remote add origin https://github.com/atto-lang/atto-source.llvm.git
+          git -C source fetch --no-tags --depth=1 origin 4bc6bcc80bc44a861122fb31f35d9d57b08dcc1d
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = 4bc6bcc80bc44a861122fb31f35d9d57b08dcc1d
+          test "$(git -C source rev-parse 'HEAD^{tree}')" = 87ffdb4e28cec3401fd054336b504e4ac77d7ab4
+          test "$(git -C source hash-object tests/native_ipc_receipt_loss_failpoint_test.cpp)" = 09dcb058681c532e46508b4cb7e2dc42431e7f5e
+      - name: Execute exact failpoint test under both compiler families and optimization levels
+        working-directory: source
+        run: |
+          set -euo pipefail
+          for compiler in g++ clang++; do
+            for opt in -O0 -O2; do
+              "$compiler" -std=c++20 "$opt" -Wall -Wextra -Wpedantic -Werror -UNDEBUG -pthread -Isrc/main/cpp tests/native_ipc_receipt_loss_failpoint_test.cpp -o "$RUNNER_TEMP/failpoint"
+              "$RUNNER_TEMP/failpoint"
+            done
+          done
+      - name: Full native regression
+        working-directory: source
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y llvm-18-dev clang-18 lld-18
+          CC=clang-18 CXX=clang++-18 cmake -S . -B "$RUNNER_TEMP/llvm-build" -DLLVM_DIR="$(llvm-config-18 --cmakedir)" -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+          cmake --build "$RUNNER_TEMP/llvm-build" --parallel 2
+          ctest --test-dir "$RUNNER_TEMP/llvm-build" --output-on-failure
