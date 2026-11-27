@@ -9,8 +9,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     env:
-      SOURCE_HEAD: 0f87399e3a627ea7b81227e88e5ce1082008e8bb
-      SOURCE_TREE: b874a4a4f0c0e1edf5f8c3d6b5abe3d4385bf109
+      SOURCE_HEAD: b1830519933051309b948cfcaa23d4da103c7185
+      SOURCE_TREE: 8a97c41c0698dcb6ddf0e8e82340bbed9017981a
       GIT_TERMINAL_PROMPT: '0'
     steps:
       - name: Fetch public source and verify exact commit and tree
@@ -29,6 +29,7 @@ jobs:
           set -euo pipefail
           rustup toolchain install 1.85.1 --profile minimal --component clippy
           cargo +1.85.1 test --locked --test typed_cfg_census
+          cargo +1.85.1 test --locked --lib liveness_budget_tests
           cargo +1.85.1 test --locked --lib loan_liveness
           cargo +1.85.1 test --locked --test disjoint_field_loan_guest
           cargo +1.85.1 test --locked --test borrow_export_l3
