@@ -1,0 +1,24 @@
+name: Exact value-loop observation registry
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/value-loop-observations.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  registry:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Authenticate exact public corpus and execute registry tests
+        run: |
+          set -euo pipefail
+          git init src
+          git -C src -c credential.helper= -c http.extraHeader= fetch --depth=1 --no-tags https://github.com/atto-lang/atto-platform-conformance.git ad5832351dbeb06f7c86ef0c7cea31d2bce24565
+          git -C src checkout --detach FETCH_HEAD
+          test "$(git -C src rev-parse HEAD)" = ad5832351dbeb06f7c86ef0c7cea31d2bce24565
+          test "$(git -C src rev-parse HEAD^{tree})" = fbf39e1575cdf140ca4551dbb73afddc9d6181d6
+          cd src
+          node --test tests/value-loop-recur-targets.test.mjs tests/value-loop-recur-observations-v1.test.mjs
+          git diff --exit-code
