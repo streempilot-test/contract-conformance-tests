@@ -10,8 +10,8 @@ jobs:
     timeout-minutes: 25
     env:
       GIT_TERMINAL_PROMPT: '0'
-      SOURCE_SHA: e193c527eae89dc6efba08e1667e3bbac3aa66d6
-      SOURCE_TREE: 3f7e122016e4a525e2ec4f22558daafa380bc8bb
+      SOURCE_SHA: 430a2c6e025c33e488d9f4fe13315d592df97bb0
+      SOURCE_TREE: 5a2d3d9b2ee02aeb6eb5cf2b1779c59bb04c69a8
     steps:
       - name: Fetch public Rust source and verify exact commit and tree
         shell: bash
@@ -38,12 +38,20 @@ jobs:
           set -euo pipefail
           cd "$RUNNER_TEMP/atto-rust"
           cargo test --locked --all-targets --no-fail-fast
-      - name: Inspect guest test harness prerequisites
+      - name: Execute native and Wasm-hosted compiler guests independently of full-suite failure
+        if: always()
         shell: bash
         run: |
+          set -euo pipefail
           cd "$RUNNER_TEMP/atto-rust"
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          test "$(git rev-parse HEAD^{tree})" = "$SOURCE_TREE"
           node --version
           node --check tests/closed_record_guest.mjs
+          rustup target add wasm32-unknown-unknown
+          cargo build --locked --release --bin attoc
+          cargo build --locked --release --target wasm32-unknown-unknown --lib
+          node tests/closed_record_guest.mjs
       - name: Compare inherited failures on exact predecessor
         if: always()
         shell: bash
