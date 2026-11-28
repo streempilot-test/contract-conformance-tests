@@ -12,14 +12,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - repo: atto-source.java
-            head: ec2fb7b961569e489c9d4bf94e32812c736c08a4
-            lane: java
-            tree: dca1fb44f3fa43316f9b2b6043d33852d2f2a9bb
-          - repo: atto-source.js
-            head: f47da87a40785242cda2f05c702ba6a6a6886583
-            lane: js
-            tree: a5d996d608276b1f6e9b110dec3ae02cccead80c
+          - repo: atto-source.rs
+            head: 39cb7ddf378070d86e614a705fb6ab1ef2d10685
+            lane: rust
+            tree: b0f915c2f7b2a13bf8a93b0661cd06f05d67225c
     env:
       SOURCE_REPO: ${{ matrix.repo }}
       SOURCE_HEAD: ${{ matrix.head }}
@@ -31,7 +27,7 @@ jobs:
         run: |
           set -euo pipefail
           case "$SOURCE_REPO:$SOURCE_HEAD:$SOURCE_TREE" in
-            atto-source.java:ec2fb7b961569e489c9d4bf94e32812c736c08a4:dca1fb44f3fa43316f9b2b6043d33852d2f2a9bb|atto-source.js:f47da87a40785242cda2f05c702ba6a6a6886583:a5d996d608276b1f6e9b110dec3ae02cccead80c) ;;
+            atto-source.rs:39cb7ddf378070d86e614a705fb6ab1ef2d10685:b0f915c2f7b2a13bf8a93b0661cd06f05d67225c) ;;
             *) exit 1 ;;
           esac
           mkdir source
@@ -52,10 +48,10 @@ jobs:
           case "$LANE" in
             rust)
               rustc --version
-              cargo test --locked --test source_control_admission --test source_unicode_control_admission --test structural_ast_depth_cli --test source_callable_types --test call_spread_ellipsis_admission --test direct_lambda --test direct_lambda_audit
+              cargo test --locked --test actor_implements_mtd_runtime --test source_control_admission --test source_unicode_control_admission --test structural_ast_depth_cli --test source_callable_types --test call_spread_ellipsis_admission --test direct_lambda --test direct_lambda_audit
               cargo build --locked --bin attoc
               node tests/callable_guest_execution.mjs
-              cargo test --locked --all-targets
+              cargo test --locked --all-targets --no-fail-fast
               ;;
             cranelift)
               cargo test --locked --bin orescranelift linked_native:: -- --nocapture
