@@ -9,8 +9,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     env:
-      SOURCE_HEAD: 2c9eae3616e43a2a476d5d20d0b740e314ca8a51
-      SOURCE_TREE: 064ee4aea460501b0f0de739b94f337cfd332d0c
+      SOURCE_HEAD: ea32717f066856a29e34a48d7fb06d5ab14a527e
+      SOURCE_TREE: 5cb7d694d05960e85aec413513efcb3548390646
       GIT_TERMINAL_PROMPT: '0'
     steps:
       - name: Fetch public source and verify exact commit and tree
@@ -34,6 +34,7 @@ jobs:
           cargo +1.85.1 test --locked --test disjoint_field_loan_guest
           cargo +1.85.1 test --locked --test borrow_export_l3
           cargo +1.85.1 test --locked --test structural_ast_depth_cli
+          cargo +1.85.1 test --locked --test source_control_admission
           cargo +1.85.1 test --locked --all-targets
           cargo +1.85.1 clippy --locked --all-targets -- -D warnings
       - name: Verify source unchanged
