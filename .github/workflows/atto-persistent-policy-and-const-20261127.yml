@@ -1,0 +1,95 @@
+name: Atto persistent policy and const regressions
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/atto-persistent-policy-and-const-20261127.yml']
+permissions:
+  contents: read
+jobs:
+  java:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Fetch exact public source
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.java.git c8f63b620fb5002b425cee01e09485491c46adc5
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = c8f63b620fb5002b425cee01e09485491c46adc5
+          git -C source rev-parse HEAD^{tree}
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: cd source && bash tests/run-arena-policy-differential.sh
+  js:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Fetch exact public source
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.js.git c5401009252f8354b6693e337a669e94f11fe181
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = c5401009252f8354b6693e337a669e94f11fe181
+          git -C source rev-parse HEAD^{tree}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: |
+          cd source
+          test "$(git hash-object tests/arena-policy-differential-v1.mjs)" = f98055af7bb9b8952664946d2b2a1f3a735dc283
+          node --test tests/arena-quota-lifecycle-guest.test.mjs
+  cranelift:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Fetch exact public source
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.cranelift.git 881f2f42ef9ed9df473f1efd180e874eb976f262
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = 881f2f42ef9ed9df473f1efd180e874eb976f262
+          git -C source rev-parse HEAD^{tree}
+      - run: cd source && cargo test --locked --test combined_scalar_features -- --nocapture
+  wasm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Fetch exact public source
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.wasm.git ef58189b2a713df5d2c23985f5be9b3e58feb011
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = ef58189b2a713df5d2c23985f5be9b3e58feb011
+          git -C source rev-parse HEAD^{tree}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build exact compiler and execute browser guest
+        run: |
+          set -euo pipefail
+          git init rs
+          git -C rs -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.rs.git 8ef911ab903037699c5d6b047afb180799daa37d
+          git -C rs checkout --detach FETCH_HEAD
+          test "$(git -C rs rev-parse HEAD)" = 8ef911ab903037699c5d6b047afb180799daa37d
+          test "$(git -C rs rev-parse HEAD^{tree})" = 5ba6399cbd9523a07dfd744230c6462a262a010f
+          rustup toolchain install 1.85.1 --profile minimal --target wasm32-unknown-unknown
+          (cd rs && cargo +1.85.1 build --locked --release --target wasm32-unknown-unknown --lib)
+          export ATTO_BROWSER_SOURCE_ROOT="$PWD/rs"
+          export ATTO_BROWSER_COMPILER="$PWD/rs/target/wasm32-unknown-unknown/release/atto_compiler.wasm"
+          export ATTO_BROWSER_COMPILER_SHA256="$(sha256sum "$ATTO_BROWSER_COMPILER" | cut -d ' ' -f1)"
+          export ATTO_ARENA_BROWSER_REQUIRED=1
+          cd source
+          node --test tests/arena-policy-browser-compiler.test.mjs
