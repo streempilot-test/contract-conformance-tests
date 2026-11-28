@@ -10,8 +10,8 @@ jobs:
     timeout-minutes: 25
     env:
       GIT_TERMINAL_PROMPT: '0'
-      SOURCE_SHA: 73e7437a7c75567388731f45bd67a5447338d71b
-      SOURCE_TREE: d624e5b664167487a2d4a48bac8c63c2e78db5d8
+      SOURCE_SHA: 94ba0779b39a36a802cd7e9c7c40040e00be05b0
+      SOURCE_TREE: 6a7e4a543a805acd13d2275a7efc5a62b659fcef
     steps:
       - name: Fetch public Java source and verify exact commit and tree
         shell: bash
