@@ -1,0 +1,34 @@
+name: Atto integrated CIL differential policy
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/atto-cil-differential-integration-20261127.yml']
+permissions:
+  contents: read
+jobs:
+  clr:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Reconstruct exact public integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= fetch --no-tags https://github.com/atto-lang/atto-source.net.git ec37bce3876d24298054b5038faafd4460ce373b 5189115fc156f15f8c970bccb509eff1df25ecf1
+          git -C source checkout --detach ec37bce3876d24298054b5038faafd4460ce373b
+          git -C source -c user.name=CI -c user.email=ci@example.invalid merge --no-ff --no-edit 5189115fc156f15f8c970bccb509eff1df25ecf1
+          git -C source rev-parse HEAD^{tree}
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run exact integrated differential guest gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd source
+          bash verification/Ores.Net.ArenaPolicyGuestProbe/run-guest-probes.sh
