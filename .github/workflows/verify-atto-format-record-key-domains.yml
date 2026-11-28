@@ -40,3 +40,16 @@ jobs:
           set -euo pipefail
           cd "$RUNNER_TEMP/atto-format"
           cargo test --locked --all-targets
+
+      - name: Check failing unrelated differential test on exact pre-PR main
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          git init "$RUNNER_TEMP/atto-format-baseline"
+          cd "$RUNNER_TEMP/atto-format-baseline"
+          git -c credential.helper= -c http.extraheader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-format.git 9f21697eff7f0696c0e1c6c30fcc57cc952c3c43
+          git checkout --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = 9f21697eff7f0696c0e1c6c30fcc57cc952c3c43
+          test "$(git rev-parse HEAD^{tree})" = e8e2d71c8412befc9fcba3415def58f6128e6529
+          cargo test --locked --test compiler_differential_regressions compact_do_loop_headers_trait_compat_order_and_bare_actor_headers -- --exact
