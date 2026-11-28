@@ -1,0 +1,71 @@
+name: Atto further new PR integrations
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/atto-new-pr-batch-three-20261128.yml']
+permissions:
+  contents: read
+jobs:
+  java_2077:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Exact public integration
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags https://github.com/atto-lang/atto-source.java.git 23b1379ec314c04702b2627fb1b287652681be82 5ab6c51cb2d204d9aa5c0a3c233255b23fe28f44
+          git -C source checkout --detach 5ab6c51cb2d204d9aa5c0a3c233255b23fe28f44
+          git -C source -c user.name=CI -c user.email=ci@example.invalid merge --no-edit --no-ff 23b1379ec314c04702b2627fb1b287652681be82
+          git -C source rev-parse HEAD^{tree}
+      - uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: '25'
+          distribution: graalvm
+      - name: Execute candidate tests
+        run: |
+          set -euo pipefail
+          cd source
+          bash ci/compiler/verify-readonly-reference-java.sh
+  rs_830:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Exact public integration
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags https://github.com/atto-lang/atto-source.rs.git 7c4a73f09d0aba6ae4ee7e87f8b4294649eca735 5d32dc715eb007f7581278bce1da8284abab2a6d
+          git -C source checkout --detach 5d32dc715eb007f7581278bce1da8284abab2a6d
+          git -C source -c user.name=CI -c user.email=ci@example.invalid merge --no-edit --no-ff 7c4a73f09d0aba6ae4ee7e87f8b4294649eca735
+          git -C source rev-parse HEAD^{tree}
+      - name: Execute candidate tests
+        run: |
+          set -euo pipefail
+          cd source
+          rustup toolchain install 1.85.1 --profile minimal
+          cargo +1.85.1 test --locked --test stdlib_native_guest
+  js_325:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Exact public integration
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags https://github.com/atto-lang/atto-source.js.git d97458d1553d45db65deb68d8b590789feea12ae 641b0fe5b1ad543513317e8b5ef2878d9dd97a76
+          git -C source checkout --detach 641b0fe5b1ad543513317e8b5ef2878d9dd97a76
+          git -C source -c user.name=CI -c user.email=ci@example.invalid merge --no-edit --no-ff d97458d1553d45db65deb68d8b590789feea12ae
+          git -C source rev-parse HEAD^{tree}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Execute candidate tests
+        run: |
+          set -euo pipefail
+          cd source
+          npm test
+          npm run check
