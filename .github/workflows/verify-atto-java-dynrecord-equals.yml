@@ -1,0 +1,44 @@
+name: Exact Java Record delimiter parser
+on:
+  push:
+    branches: [verify/atto-java-dynrecord-equals-20261127]
+permissions:
+  contents: read
+jobs:
+  exact-source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      GIT_TERMINAL_PROMPT: '0'
+      SOURCE_SHA: d22827ba4b84e609ea1dd43f93c0011e6960e4d6
+      SOURCE_TREE: eb9cd6ad7ffa37020f6ec799168f13017646b420
+    steps:
+      - name: Fetch public Java source and verify exact commit and tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          git init "$RUNNER_TEMP/atto-java"
+          cd "$RUNNER_TEMP/atto-java"
+          git -c credential.helper= -c http.extraheader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.java.git "$SOURCE_SHA"
+          git checkout --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          test "$(git rev-parse HEAD^{tree})" = "$SOURCE_TREE"
+          git fsck --strict --no-dangling
+          printf 'EXACT_PUBLIC_SOURCE %s %s\n' "$SOURCE_SHA" "$SOURCE_TREE"
+      - name: Compile production parser and execute focused JUnit tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/atto-java"
+          export JAVA_HOME="${JAVA_HOME_21_X64:?JDK 21 required}"
+          export PATH="$JAVA_HOME/bin:$PATH"
+          java -version
+          mvn -B -ntp -Dtest=RecursiveRecordParserTest -Dsurefire.failIfNoSpecifiedTests=true test
+      - name: Run full Java regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/atto-java"
+          export JAVA_HOME="${JAVA_HOME_21_X64:?JDK 21 required}"
+          export PATH="$JAVA_HOME/bin:$PATH"
+          mvn -B -ntp test
