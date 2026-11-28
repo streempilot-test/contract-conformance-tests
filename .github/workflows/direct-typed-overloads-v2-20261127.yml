@@ -1,0 +1,107 @@
+name: Exact public direct typed overload qualification
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/direct-typed-overloads-v2-20261127.yml'
+  push:
+    branches: ['ci/direct-typed-overloads-v2-20261127']
+    paths:
+      - '.github/workflows/direct-typed-overloads-v2-20261127.yml'
+permissions:
+  contents: read
+jobs:
+  exact:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - repo: atto-lang/atto-source.rs
+            head: a0c0fa903a45fb0e66aa61185e674bf5a236cb07
+            tree: 68625fecdd98b60f5b661e66c9f8f69877d5928d
+            dir: .
+          - repo: atto-lang/atto-source.llvm
+            head: 70c1c126cd479d967449ae2d950301cde2cef82c
+            tree: 8d65efb2427d46e04106b42e73bbc2a240baa3f3
+            dir: frontend
+    steps:
+      - name: Fetch public source anonymously and verify exact root tree
+        env:
+          REPO: ${{ matrix.repo }}
+          HEAD_SHA: ${{ matrix.head }}
+          TREE_SHA: ${{ matrix.tree }}
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_GLOBAL: /dev/null
+        run: |
+          set -euo pipefail
+          git init source
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 "https://github.com/$REPO.git" "$HEAD_SHA"
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = "$HEAD_SHA"
+          test "$(git -C source rev-parse 'HEAD^{tree}')" = "$TREE_SHA"
+          test -z "$(git -C source status --porcelain --untracked-files=no)"
+          printf 'Verified source=%s head=%s tree=%s\n' "$REPO" "$HEAD_SHA" "$TREE_SHA"
+      - name: Install pinned Rust
+        run: rustup toolchain install 1.85.1 --profile minimal --target wasm32-unknown-unknown
+      - name: Targeted compiler regression
+        working-directory: source/${{ matrix.dir }}
+        run: cargo +1.85.1 test --locked --test direct_typed_overloads_v2 --test option_match_memory_v2 --test option_suffix_current_main_v2
+      - name: Full compiler tests
+        working-directory: source/${{ matrix.dir }}
+        run: cargo +1.85.1 test --locked --all-targets
+      - name: Build native and Wasm32 compilers
+        working-directory: source/${{ matrix.dir }}
+        run: |
+          cargo +1.85.1 build --locked --release --bin attoc
+          cargo +1.85.1 build --locked --release --lib --target wasm32-unknown-unknown
+      - name: Execute actual compiled guests and reject invalid calls
+        working-directory: source/${{ matrix.dir }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import {mkdtempSync,writeFileSync,readFileSync,existsSync} from 'node:fs';
+          import {tmpdir} from 'node:os';
+          import {join} from 'node:path';
+          import {spawnSync} from 'node:child_process';
+          const dir=mkdtempSync(join(tmpdir(),'atto-overload-'));
+          const bin=join(process.cwd(),'target/release/attoc');
+          const entry=' pub fnc main(): int { return ';
+          const positives=[
+            ['fnc pick(int x): int { return 20; } fnc pick(x: bool): int { return 22; }'+entry+'pick(1)+pick(true); }',42],
+            ['fnc pick(x: bool): int { return 22; } fnc pick(int x): int { return 20; }'+entry+'pick(true)+pick(1); }',42],
+            ['fnc pick(int x): int { return 20; } fnc pick(x: int?): int { return 22; }'+entry+'pick(1)+pick(Some(4)); }',42],
+            ['fnc pick(int? x): int { return 42; } fnc pick(x: Option<Result<int,string>>): int { return 1; } pub fnc main(): int { val v: Option<int> = None; return pick(v); }',42],
+            ['fnc pick(int x): int { return 42; } fnc pick(x: bool): int { return 21; } fnc pick(int x,int y): int { return x+y; }'+entry+'pick(20,22); }',42],
+            ['fnc inspect(int? x): int { match x over on None -> { return 0; } on Some(n) -> { return n; } end }'+entry+'42; }',42]
+          ];
+          for(const [i,[source,expected]] of positives.entries()){
+            const file=join(dir,'p'+i+'.atto'),out=join(dir,'p'+i+'.wasm');
+            writeFileSync(file,source);
+            const r=spawnSync(bin,[file,'-o',out],{encoding:'utf8'});
+            assert.equal(r.status,0,r.stderr);
+            const mod=new WebAssembly.Module(readFileSync(out));
+            assert.deepEqual(WebAssembly.Module.imports(mod),[]);
+            assert.equal(BigInt(new WebAssembly.Instance(mod,{}).exports.main()),BigInt(expected));
+            console.log('positive guest',i,'passed');
+          }
+          const negatives=[
+            ['fnc pick(int? x): int { return 1; } fnc pick(x: Option<Result<int,string>>): int { return 2; }'+entry+'pick(None); }','E_AMBIGUOUS'],
+            ['fnc pick(int? x): int { return 1; } fnc pick(x: Option<int>): int { return 2; }'+entry+'42; }','E_DUPLICATE'],
+            ['fnc pick(int x): int { return 1; } fnc pick(x: bool): int { return 2; }'+entry+'pick("wrong"); }','E_TYPE'],
+            ['fnc pick(int x): int { return 1; } fnc pick(x: bool): int { return 2; }'+entry+'pick(); }','E_ARITY']
+          ];
+          for(const [i,[source,diagnostic]] of negatives.entries()){
+            const file=join(dir,'n'+i+'.atto'),out=join(dir,'n'+i+'.wasm');
+            writeFileSync(file,source);
+            const r=spawnSync(bin,[file,'-o',out],{encoding:'utf8'});
+            assert.notEqual(r.status,null,r.error?.message);
+            assert.notEqual(r.status,0,source);
+            assert.ok(r.stderr.includes(diagnostic),r.stderr);
+            assert.equal(existsSync(out),false);
+            console.log('negative',i,diagnostic,'passed');
+          }
+          JS

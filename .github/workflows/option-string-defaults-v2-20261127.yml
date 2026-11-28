@@ -1,0 +1,132 @@
+name: Exact public Option string default qualification
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/option-string-defaults-v2-20261127.yml'
+  push:
+    branches: ['ci/direct-typed-overloads-v2-20261127']
+    paths:
+      - '.github/workflows/option-string-defaults-v2-20261127.yml'
+permissions:
+  contents: read
+jobs:
+  exact:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - repo: atto-lang/atto-source.rs
+            head: e4caff0b4c0b2a206240c7772636c0f7bcfae341
+            tree: 1be6d8a2bca57ae275451b4a9a71db0c07a61cf6
+            dir: .
+          - repo: atto-lang/atto-source.llvm
+            head: 853e5d112644a1c706c917f582a427f8e00c416d
+            tree: 7866d09ce24aec4ff75cefe624835e03bc076179
+            dir: frontend
+    steps:
+      - name: Fetch public source anonymously and verify exact root tree
+        env:
+          REPO: ${{ matrix.repo }}
+          HEAD_SHA: ${{ matrix.head }}
+          TREE_SHA: ${{ matrix.tree }}
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_GLOBAL: /dev/null
+        run: |
+          set -euo pipefail
+          git init source
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 "https://github.com/$REPO.git" "$HEAD_SHA"
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = "$HEAD_SHA"
+          test "$(git -C source rev-parse 'HEAD^{tree}')" = "$TREE_SHA"
+          test -z "$(git -C source status --porcelain --untracked-files=no)"
+          printf 'Verified source=%s head=%s tree=%s\n' "$REPO" "$HEAD_SHA" "$TREE_SHA"
+      - name: Install pinned Rust
+        run: rustup toolchain install 1.85.1 --profile minimal --target wasm32-unknown-unknown
+      - name: Targeted compiler regression
+        working-directory: source/${{ matrix.dir }}
+        run: cargo +1.85.1 test --locked --test option_string_defaults_v2 --test none_default_alias_v2 --test direct_constant_defaults_v2 --test direct_omission_provenance_v2 --test direct_typed_overloads_v2 --test option_match_memory_v2 --test option_suffix_current_main_v2
+      - name: Full compiler tests
+        working-directory: source/${{ matrix.dir }}
+        run: cargo +1.85.1 test --locked --all-targets
+      - name: Build native and Wasm32 compilers
+        working-directory: source/${{ matrix.dir }}
+        run: |
+          cargo +1.85.1 build --locked --release --bin attoc
+          cargo +1.85.1 build --locked --release --lib --target wasm32-unknown-unknown
+      - name: Execute actual compiled guests and reject invalid calls
+        working-directory: source/${{ matrix.dir }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import {mkdtempSync,writeFileSync,readFileSync,existsSync} from 'node:fs';
+          import {tmpdir} from 'node:os';
+          import {join} from 'node:path';
+          import {spawnSync} from 'node:child_process';
+          const dir=mkdtempSync(join(tmpdir(),'atto-overload-'));
+          const bin=join(process.cwd(),'target/release/attoc');
+          const entry=' pub fnc main(): int { return ';
+          const positives=[
+            ...['x?: string? ?= "bar" ??= "star"','string? x? ?? "bar" ??= "star"','x?: Option<string> ?= Some("bar") ??= Some("star")'].map(formal=>[
+              'fnc f('+formal+'): int { match x over on None -> { return 0; } on Some(v) -> { return v eq "star" ? 4 : (v eq "bar" ? 3 : (v eq "" ? 0 : 99)); } end }'+entry+'f()+f(None)+f(Some("")); }',7]),
+            ['fnc foo(x?: int? ?= 3 ??= 4): int { return 20; } fnc foo(x?: string? ?= "bar" ??= "star"): int { return 22; }'+entry+'foo(Some(1))+foo(Some("x")); }',42],
+            ['fnc f(x?: string? ?= "bar" ??= None): int { match x over on None -> { return 42; } on Some(v) -> { return v eq "star" ? 4 : (v eq "bar" ? 3 : (v eq "" ? 0 : 99)); } end }'+entry+'f(); }',42],
+            ['fnc f(x?: string? ?= "bar" ??= "star"): Option<string> { val v: string = x?; return Some(v); } pub fnc main(): int { val v: Option<string> = f(None); match v over on None -> { return 0; } on Some(n) -> { return n eq "bar" ? 3 : 99; } end }',3],
+            ...['int? x? ?= 3 ??= 4','x?: int? ?= 3 ??= 4','x?: Option<int> ?= Some(3) ??= Some(4)'].map(formal=>[
+              'fnc f('+formal+'): int { match x over on None -> { return 0; } on Some(n) -> { return n; } end }'+entry+'f()+f(None)+f(Some(35)); }',42]),
+            ['fnc f(x?: int? ?= 3 ??= 4): Option<int> { val n: int = x?; return Some(n+1); } pub fnc main(): int { val v: Option<int> = f(None); match v over on None -> { return 0; } on Some(n) -> { return n; } end }',4],
+            ['fnc f(x?: int? ?= 3 ??= None): Option<int> { val n: int = x?; return Some(n+1); } pub fnc main(): int { val v: Option<int> = f(); match v over on None -> { return 42; } on Some(n) -> { return n; } end }',42],
+            ['fnc f(x?: int? ?= 3 ??= 4): int { return x is omitted ? 42 : 0; }'+entry+'f(); }',42],
+            ['fnc f(x?: int? ?= 3 ??= 4): int { return x is omitted ? 42 : 0; }'+entry+'f(None); }',0],
+            ...['int? x? ?? 3 ??= 4','x?: int? ?? 3 ??= 4','x?: Option<int> ?? Some(3) ??= Some(4)'].map(formal=>[
+              'fnc f('+formal+'): int { match x over on None -> { return 0; } on Some(n) -> { return n; } end }'+entry+'f()+f(None)+f(Some(35)); }',42]),
+            ['fnc f(x?: int ??= 20): int { if x is omitted do return x; fi return x+1; }'+entry+'f()+f(21); }',42],
+            ['fnc f(int x? ??= 42): int { return x; }'+entry+'f(omit); }',42],
+            ['fnc f(x: int? ?? 42): int { match x over on None -> { return 0; } on Some(n) -> { return n; } end } pub fnc main(): int { val v: Option<int> = None; return f(v); }',42],
+            ['fnc f(x?: int? ?? 42 ??= None): int { match x over on None -> { return 42; } on Some(n) -> { return 0; } end }'+entry+'f(); }',42],
+            ['fnc f(x?: int? ?? 42): int { match x over on None -> { return 42; } on Some(n) -> { return 0; } end }'+entry+'f(); }',42],
+            ['fnc f(x?: int? ?? 21 ??= 42): int { if x is omitted do match x over on None -> { return 0; } on Some(n) -> { return n; } end fi return 0; }'+entry+'f()+f(None)+f(Some(0)); }',42],
+            ['fnc f(x?: int? ?? 42 ??= 42): int { match x over on None -> { return 99; } on Some(n) -> { return n; } end }'+entry+'f(Some(0)); }',0],
+            ['fnc f(int x): int { return 20; } fnc f(x: int, y?: int ??= 22): int { return y; }'+entry+'f(1)+f(1,22); }',42],
+            ['fnc f(x?: int ??= 9223372036854775807): int { return x; }'+entry+'f(); }','9223372036854775807'],
+            ['fnc f(x?: int ??= -9223372036854775808): int { return x; }'+entry+'f(); }','-9223372036854775808']
+          ];
+          for(const [i,[source,expected]] of positives.entries()){
+            const file=join(dir,'p'+i+'.atto'),out=join(dir,'p'+i+'.wasm');
+            writeFileSync(file,source);
+            const r=spawnSync(bin,[file,'-o',out],{encoding:'utf8'});
+            assert.equal(r.status,0,r.stderr);
+            const mod=new WebAssembly.Module(readFileSync(out));
+            assert.deepEqual(WebAssembly.Module.imports(mod),[]);
+            assert.equal(BigInt(new WebAssembly.Instance(mod,{}).exports.main()),BigInt(expected));
+            console.log('positive guest',i,'passed');
+          }
+          const negatives=[
+            ...['foo()','foo(None)'].map(call=>['fnc foo(x?: int? ?= 3 ??= 4): int { return 1; } fnc foo(x?: string? ?= "bar" ??= "star"): int { return 2; }'+entry+call+'; }','E_AMBIGUOUS']),
+            ['fnc f(x?: string? ?= 3): int { return 1; }'+entry+'42; }','E_DEFAULT_LITERAL'],
+            ...['x?: int? ?= 1 ?? 2','x?: int? ?? 1 ?= 2','x?: int? ?= 1 ?= 2','x?: int? ??= 1 ?= 2','x?: int ?= 1'].map(formal=>['fnc f('+formal+'): int { return 1; }'+entry+'42; }','E_DEFAULT_CLAUSE']),
+            ['fnc f(x: int ??= 4): int { return 1; }'+entry+'42; }','E_DEFAULT_CLAUSE'],
+            ['fnc f(x?: int ?? 4): int { return 1; }'+entry+'42; }','E_DEFAULT_CLAUSE'],
+            ['fnc f(x?: int? ??= 4 ?? 3): int { return 1; }'+entry+'42; }','E_DEFAULT_CLAUSE'],
+            ['fnc f(x?: int? ?? 3 ?? 4): int { return 1; }'+entry+'42; }','E_DEFAULT_CLAUSE'],
+            ['fnc f(x?: int? ??= 3 ??= 4): int { return 1; }'+entry+'42; }','E_DEFAULT_CLAUSE'],
+            ['fnc f(x?: int? ??= "wrong"): int { return 1; }'+entry+'42; }','E_DEFAULT_LITERAL'],
+            ['fnc f(x?: int? ??= 9223372036854775808): int { return 1; }'+entry+'42; }','E_DEFAULT_LITERAL'],
+            ['fnc f(x?: int? ?? 3 ??= 4): int { return 1; } fnc f(x?: Option<Result<int,string>>): int { return 2; }'+entry+'f(); }','E_AMBIGUOUS'],
+            ['fnc f(x?: int? ?? 3 ??= 4): int { return 1; } fnc f(x?: Option<Result<int,string>>): int { return 2; }'+entry+'f(None); }','E_AMBIGUOUS']
+          ];
+          for(const [i,[source,diagnostic]] of negatives.entries()){
+            const file=join(dir,'n'+i+'.atto'),out=join(dir,'n'+i+'.wasm');
+            writeFileSync(file,source);
+            const r=spawnSync(bin,[file,'-o',out],{encoding:'utf8'});
+            assert.notEqual(r.status,null,r.error?.message);
+            assert.notEqual(r.status,0,source);
+            assert.ok(r.stderr.includes(diagnostic),r.stderr);
+            assert.equal(existsSync(out),false);
+            console.log('negative',i,diagnostic,'passed');
+          }
+          JS

@@ -1,0 +1,77 @@
+name: Exact public current-main optional V2 prerequisites
+on:
+  push:
+    branches: ['ci/direct-typed-overloads-v2-20261127']
+    paths: ['.github/workflows/optional-v2-main-prerequisites-20261127.yml']
+  pull_request:
+    paths: ['.github/workflows/optional-v2-main-prerequisites-20261127.yml']
+permissions:
+  contents: read
+jobs:
+  exact:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - repo: atto-lang/atto-source.rs
+            head: b06ff228e063e23f1efac2d3fbc7a8a628647ae1
+            tree: 454fc79868a8fe7d3f9ce9e0d7a223c47f7594ee
+            dir: .
+          - repo: atto-lang/atto-source.llvm
+            head: 96657e73002da126559edf14742089b3b5c990d2
+            tree: 794ade517b54b97be61d0296a363d52fea451af8
+            dir: frontend
+    steps:
+      - name: Fetch exact public integration tree
+        env:
+          REPO: ${{ matrix.repo }}
+          HEAD_SHA: ${{ matrix.head }}
+          TREE_SHA: ${{ matrix.tree }}
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_GLOBAL: /dev/null
+        run: |
+          set -euo pipefail
+          git init source
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 "https://github.com/$REPO.git" "$HEAD_SHA"
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = "$HEAD_SHA"
+          test "$(git -C source rev-parse 'HEAD^{tree}')" = "$TREE_SHA"
+          test -z "$(git -C source status --porcelain --untracked-files=no)"
+          printf 'Verified source=%s head=%s tree=%s\n' "$REPO" "$HEAD_SHA" "$TREE_SHA"
+      - name: Install pinned toolchain
+        run: rustup toolchain install 1.85.1 --profile minimal --target wasm32-unknown-unknown
+      - name: Targeted Rust match-memory regression
+        if: matrix.repo == 'atto-lang/atto-source.rs'
+        working-directory: source/${{ matrix.dir }}
+        run: cargo +1.85.1 test --locked --test option_match_memory_v2
+      - name: Targeted LLVM browser typed planner unit tests
+        if: matrix.repo == 'atto-lang/atto-source.llvm'
+        working-directory: source/${{ matrix.dir }}
+        run: cargo +1.85.1 test --locked --lib call_presence_v2::tests
+      - name: Full compiler suite
+        working-directory: source/${{ matrix.dir }}
+        run: cargo +1.85.1 test --locked --all-targets
+      - name: Native and Wasm compiler builds
+        working-directory: source/${{ matrix.dir }}
+        run: |
+          cargo +1.85.1 build --locked --release --bin attoc
+          cargo +1.85.1 build --locked --release --lib --target wasm32-unknown-unknown
+      - name: Execute compiled Rust match-only guest
+        if: matrix.repo == 'atto-lang/atto-source.rs'
+        working-directory: source/${{ matrix.dir }}
+        run: |
+          set -euo pipefail
+          d="$(mktemp -d)"
+          printf '%s\n' 'fnc inspect(x: Option<int>): int { match x over on None -> { return 0; } on Some(n) -> { return n; } end } pub fnc main(): int { return 42; }' > "$d/probe.atto"
+          target/release/attoc "$d/probe.atto" -o "$d/probe.wasm"
+          node --input-type=module - "$d/probe.wasm" <<'JS'
+          import assert from 'node:assert/strict';
+          import {readFileSync} from 'node:fs';
+          const mod=new WebAssembly.Module(readFileSync(process.argv[2]));
+          assert.deepEqual(WebAssembly.Module.imports(mod),[]);
+          assert.equal(BigInt(new WebAssembly.Instance(mod,{}).exports.main()),42n);
+          console.log('match-only guest passed');
+          JS

@@ -1,0 +1,83 @@
+name: Exact baseline and repair optional V2 main regressions
+on:
+  push:
+    branches: ['ci/direct-typed-overloads-v2-20261127']
+    paths: ['.github/workflows/optional-v2-baseline-repair-20261127.yml']
+  pull_request:
+    paths: ['.github/workflows/optional-v2-baseline-repair-20261127.yml']
+permissions:
+  contents: read
+jobs:
+  exact:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - repo: atto-lang/atto-source.rs
+            head: b715dc20a10c04de0bcd006f3f1fbe463c711b9f
+            tree: f7208db94e4819669eeb8076b04e9ac8a050fe31
+            dir: .
+            test: ownership_bang_admission
+            baseline: true
+          - repo: atto-lang/atto-source.rs
+            head: 062526d2e5bc7b4e72bef050c63c483a6e8849b7
+            tree: ce7bee9ecd2fdb0b2ac54888fd79a77c2a1ad57c
+            dir: .
+            test: ownership_bang_admission
+            baseline: false
+          - repo: atto-lang/atto-source.llvm
+            head: e9a7461b5399876615966993f2646e50a35d804c
+            tree: f51ec4cdda1752540fae9c6436ffdcf61b30d814
+            dir: frontend
+            test: inline_mtd_admission
+            baseline: true
+          - repo: atto-lang/atto-source.llvm
+            head: 3364b83ae31fb57f2e38e4a1da7c714133027b73
+            tree: 2306b1163eb53cc986ab415805175fbb35f7a440
+            dir: frontend
+            test: inline_mtd_admission
+            baseline: false
+    steps:
+      - name: Verify exact public source tree
+        env:
+          REPO: ${{ matrix.repo }}
+          HEAD_SHA: ${{ matrix.head }}
+          TREE_SHA: ${{ matrix.tree }}
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_GLOBAL: /dev/null
+        run: |
+          set -euo pipefail
+          git init source
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 "https://github.com/$REPO.git" "$HEAD_SHA"
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = "$HEAD_SHA"
+          test "$(git -C source rev-parse 'HEAD^{tree}')" = "$TREE_SHA"
+          test -z "$(git -C source status --porcelain --untracked-files=no)"
+          printf 'Verified source=%s head=%s tree=%s\n' "$REPO" "$HEAD_SHA" "$TREE_SHA"
+      - name: Install pinned Rust
+        run: rustup toolchain install 1.85.1 --profile minimal --target wasm32-unknown-unknown
+      - name: Reproduce baseline failures without hiding them
+        if: matrix.baseline
+        working-directory: source/${{ matrix.dir }}
+        env:
+          TEST_NAME: ${{ matrix.test }}
+        run: cargo +1.85.1 test --locked --test "$TEST_NAME"
+      - name: Targeted repaired production tests
+        if: "!matrix.baseline"
+        working-directory: source/${{ matrix.dir }}
+        env:
+          TEST_NAME: ${{ matrix.test }}
+        run: cargo +1.85.1 test --locked --test "$TEST_NAME"
+      - name: Full compiler suite
+        if: "!matrix.baseline"
+        working-directory: source/${{ matrix.dir }}
+        run: cargo +1.85.1 test --locked --all-targets
+      - name: Native and Wasm compiler builds
+        if: "!matrix.baseline"
+        working-directory: source/${{ matrix.dir }}
+        run: |
+          cargo +1.85.1 build --locked --release --bin attoc
+          cargo +1.85.1 build --locked --release --lib --target wasm32-unknown-unknown

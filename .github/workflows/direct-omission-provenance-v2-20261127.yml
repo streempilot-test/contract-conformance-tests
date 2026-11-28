@@ -1,0 +1,111 @@
+name: Exact public direct omission provenance qualification
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/direct-omission-provenance-v2-20261127.yml'
+  push:
+    branches: ['ci/direct-typed-overloads-v2-20261127']
+    paths:
+      - '.github/workflows/direct-omission-provenance-v2-20261127.yml'
+permissions:
+  contents: read
+jobs:
+  exact:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - repo: atto-lang/atto-source.rs
+            head: c83d82d2b648e4afa91cfdd7f9fa124311511163
+            tree: 89fe0936501a8ea1368eb74cd31c992fc220c70a
+            dir: .
+          - repo: atto-lang/atto-source.llvm
+            head: edde75139a7c1ae35ff05911c714e57442c40449
+            tree: 9ac7669144e9a7fe4ee99e5d14e395ff901b82e4
+            dir: frontend
+    steps:
+      - name: Fetch public source anonymously and verify exact root tree
+        env:
+          REPO: ${{ matrix.repo }}
+          HEAD_SHA: ${{ matrix.head }}
+          TREE_SHA: ${{ matrix.tree }}
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_GLOBAL: /dev/null
+        run: |
+          set -euo pipefail
+          git init source
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 "https://github.com/$REPO.git" "$HEAD_SHA"
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = "$HEAD_SHA"
+          test "$(git -C source rev-parse 'HEAD^{tree}')" = "$TREE_SHA"
+          test -z "$(git -C source status --porcelain --untracked-files=no)"
+          printf 'Verified source=%s head=%s tree=%s\n' "$REPO" "$HEAD_SHA" "$TREE_SHA"
+      - name: Install pinned Rust
+        run: rustup toolchain install 1.85.1 --profile minimal --target wasm32-unknown-unknown
+      - name: Targeted compiler regression
+        working-directory: source/${{ matrix.dir }}
+        run: cargo +1.85.1 test --locked --test direct_omission_provenance_v2 --test direct_typed_overloads_v2 --test option_match_memory_v2 --test option_suffix_current_main_v2
+      - name: Full compiler tests
+        working-directory: source/${{ matrix.dir }}
+        run: cargo +1.85.1 test --locked --all-targets
+      - name: Build native and Wasm32 compilers
+        working-directory: source/${{ matrix.dir }}
+        run: |
+          cargo +1.85.1 build --locked --release --bin attoc
+          cargo +1.85.1 build --locked --release --lib --target wasm32-unknown-unknown
+      - name: Execute actual compiled guests and reject invalid calls
+        working-directory: source/${{ matrix.dir }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import {mkdtempSync,writeFileSync,readFileSync,existsSync} from 'node:fs';
+          import {tmpdir} from 'node:os';
+          import {join} from 'node:path';
+          import {spawnSync} from 'node:child_process';
+          const dir=mkdtempSync(join(tmpdir(),'atto-overload-'));
+          const bin=join(process.cwd(),'target/release/attoc');
+          const entry=' pub fnc main(): int { return ';
+          const positives=[
+            ...['int? x?','x?: int?','x?: Option<int>'].map(formal=>[
+              'fnc probe('+formal+'): int { if x is omitted do return 40; fi return 1; }'+entry+'probe()+probe(None)+probe(Some(4)); }',42]),
+            ['fnc f(int x): int { return 20; } fnc f(int x, y?: int?): int { return 22; }'+entry+'f(1)+f(1,None); }',42],
+            ['fnc f(x?: int?, y: int): int { if x is omitted do return y; fi return 0; }'+entry+'f(omit,42); }',42],
+            ['fnc f(x?: int?): int { if x is omitted do return 42; fi return 0; }'+entry+'f(_); }',42],
+            ['fnc f(x?: int?): int { return 42; } fnc f(x?: Option<Result<int,string>>): int { return 1; } pub fnc main(): int { val v: Option<int> = None; return f(v); }',42],
+            ['fnc f(x?: int?): int { match x over on None -> { if x is omitted do return 20; fi return 22; } on Some(n) -> { return n; } end }'+entry+'f()+f(None); }',42]
+          ];
+          for(const [i,[source,expected]] of positives.entries()){
+            const file=join(dir,'p'+i+'.atto'),out=join(dir,'p'+i+'.wasm');
+            writeFileSync(file,source);
+            const r=spawnSync(bin,[file,'-o',out],{encoding:'utf8'});
+            assert.equal(r.status,0,r.stderr);
+            const mod=new WebAssembly.Module(readFileSync(out));
+            assert.deepEqual(WebAssembly.Module.imports(mod),[]);
+            assert.equal(BigInt(new WebAssembly.Instance(mod,{}).exports.main()),BigInt(expected));
+            console.log('positive guest',i,'passed');
+          }
+          const negatives=[
+            ['fnc f(x: int?): bool { return x is omitted; }'+entry+'42; }','E_OMISSION_PROVENANCE'],
+            ['fnc f(x?: int?): bool { val y: int = 1; return y is omitted; }'+entry+'42; }','E_OMISSION_PROVENANCE'],
+            ['fnc f(x?: int): int { return 1; }'+entry+'42; }','E_OMITTABLE_DEFAULT'],
+            ['fnc f(x?: int?, y: int): int { return y; }'+entry+'f(Some(1)); }','E_ARITY'],
+            ['fnc f(x?: int?): int { return 1; } fnc f(x?: Option<Result<int,string>>): int { return 2; }'+entry+'f(); }','E_AMBIGUOUS'],
+            ['fnc f(x?: int?): int { return 1; } fnc f(x?: Option<Result<int,string>>): int { return 2; }'+entry+'f(None); }','E_AMBIGUOUS'],
+            ['fnc f(x?: int?): int { return 1; } fnc f(x: Option<int>): int { return 2; }'+entry+'42; }','E_DUPLICATE']
+          ];
+          for(const [i,[source,diagnostic]] of negatives.entries()){
+            const file=join(dir,'n'+i+'.atto'),out=join(dir,'n'+i+'.wasm');
+            writeFileSync(file,source);
+            const r=spawnSync(bin,[file,'-o',out],{encoding:'utf8'});
+            assert.notEqual(r.status,null,r.error?.message);
+            assert.notEqual(r.status,0,source);
+            assert.ok(r.stderr.includes(diagnostic),r.stderr);
+            assert.equal(existsSync(out),false);
+            console.log('negative',i,diagnostic,'passed');
+          }
+          JS
