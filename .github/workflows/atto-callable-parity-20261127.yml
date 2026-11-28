@@ -13,13 +13,17 @@ jobs:
       matrix:
         include:
           - repo: atto-source.java
-            head: c6aee0d5e78a7962a3a10ab3cd4e0edb497db60a
+            head: d37abff00f3206ad4b0a7b7a7574c1ace505df76
             lane: java
-            tree: 96e1d8405eabff3a9decf036efc4688d7526965f
-          - repo: atto-source.llvm
-            head: a86d8594670613c80104cff2d0bb097a985fc813
-            lane: llvm
-            tree: 64c08724c08c7b003ba8af129ea71ff893d9cdae
+            tree: ecdd61a764f3e3d8078a5f66765898a099b8c222
+          - repo: atto-source.rs
+            head: c8b2b4a34907c1dcc886ec329cfc9616aafe7f0e
+            lane: rust-baseline
+            tree: 18c9c7ee0d0ad44ac6b6ba35d497461a484756ed
+          - repo: atto-source.rs
+            head: 39cb7ddf378070d86e614a705fb6ab1ef2d10685
+            lane: rust-compare
+            tree: b0f915c2f7b2a13bf8a93b0661cd06f05d67225c
     env:
       SOURCE_REPO: ${{ matrix.repo }}
       SOURCE_HEAD: ${{ matrix.head }}
@@ -31,7 +35,7 @@ jobs:
         run: |
           set -euo pipefail
           case "$SOURCE_REPO:$SOURCE_HEAD:$SOURCE_TREE" in
-            atto-source.java:c6aee0d5e78a7962a3a10ab3cd4e0edb497db60a:96e1d8405eabff3a9decf036efc4688d7526965f|atto-source.llvm:a86d8594670613c80104cff2d0bb097a985fc813:64c08724c08c7b003ba8af129ea71ff893d9cdae) ;;
+            atto-source.java:d37abff00f3206ad4b0a7b7a7574c1ace505df76:ecdd61a764f3e3d8078a5f66765898a099b8c222|atto-source.rs:c8b2b4a34907c1dcc886ec329cfc9616aafe7f0e:18c9c7ee0d0ad44ac6b6ba35d497461a484756ed|atto-source.rs:39cb7ddf378070d86e614a705fb6ab1ef2d10685:b0f915c2f7b2a13bf8a93b0661cd06f05d67225c) ;;
             *) exit 1 ;;
           esac
           mkdir source
@@ -50,6 +54,11 @@ jobs:
         run: |
           set -euo pipefail
           case "$LANE" in
+            rust-baseline|rust-compare)
+              # Both lanes have identical repaired harness and source admission
+              # files. Only the callable feature and its new tests differ.
+              cargo test --locked --no-fail-fast --test class_mtd_execution --test copy_nested_immutable --test fixtures --test inline_method_body_matrix --test nominal_actor_struct_implements --test scoped_using_timeout_gate --test stdlib_native_guest --test task_sync_admission --test v2_scoped_resources
+              ;;
             rust)
               rustc --version
               cargo test --locked --test actor_implements_mtd_runtime --test source_control_admission --test source_unicode_control_admission --test structural_ast_depth_cli --test source_callable_types --test call_spread_ellipsis_admission --test direct_lambda --test direct_lambda_audit
