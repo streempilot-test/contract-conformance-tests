@@ -10,8 +10,8 @@ jobs:
     timeout-minutes: 25
     env:
       GIT_TERMINAL_PROMPT: '0'
-      SOURCE_SHA: 4517bc3f9bd3b86d02fa0e0055410de68c86113c
-      SOURCE_TREE: 269191df3d4eb97c58e35af4c2019cc51bd85360
+      SOURCE_SHA: e193c527eae89dc6efba08e1667e3bbac3aa66d6
+      SOURCE_TREE: 3f7e122016e4a525e2ec4f22558daafa380bc8bb
     steps:
       - name: Fetch public Rust source and verify exact commit and tree
         shell: bash
@@ -44,3 +44,13 @@ jobs:
           cd "$RUNNER_TEMP/atto-rust"
           node --version
           node --check tests/closed_record_guest.mjs
+      - name: Compare inherited failures on exact predecessor
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/atto-rust"
+          git -c credential.helper= -c http.extraheader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.rs.git 2bab06df96d9ae6257d0001f17b8415dc8f181c2
+          git checkout --detach FETCH_HEAD
+          test "$(git rev-parse HEAD^{tree})" = d41d92dfea4889af9ce792c0b443766d321ff13b
+          cargo test --locked --test fixtures --test lambda_hardening --no-fail-fast
