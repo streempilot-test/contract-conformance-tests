@@ -1,0 +1,44 @@
+name: Exact Java Record delimiter parser — dependency retry
+on:
+  push:
+    branches: [verify/atto-java-symbol-string-20261127]
+permissions:
+  contents: read
+jobs:
+  exact-source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      GIT_TERMINAL_PROMPT: '0'
+      SOURCE_SHA: 73e7437a7c75567388731f45bd67a5447338d71b
+      SOURCE_TREE: d624e5b664167487a2d4a48bac8c63c2e78db5d8
+    steps:
+      - name: Fetch public Java source and verify exact commit and tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          git init "$RUNNER_TEMP/atto-java"
+          cd "$RUNNER_TEMP/atto-java"
+          git -c credential.helper= -c http.extraheader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.java.git "$SOURCE_SHA"
+          git checkout --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          test "$(git rev-parse HEAD^{tree})" = "$SOURCE_TREE"
+          git fsck --strict --no-dangling
+          printf 'EXACT_PUBLIC_SOURCE %s %s\n' "$SOURCE_SHA" "$SOURCE_TREE"
+      - name: Compile production parser and execute focused JUnit tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/atto-java"
+          export JAVA_HOME="${JAVA_HOME_21_X64:?JDK 21 required}"
+          export PATH="$JAVA_HOME/bin:$PATH"
+          java -version
+          mvn -B -ntp -Dtest=RecursiveRecordParserTest,SymbolConstructorCandidateTest,SymbolTypingTest,OresSymbolTest,OresSymbolHardeningTest,OresSymbolActorBoundaryTest,SymbolCopyIntegrityTest -Dsurefire.failIfNoSpecifiedTests=true test
+      - name: Run full Java regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/atto-java"
+          export JAVA_HOME="${JAVA_HOME_21_X64:?JDK 21 required}"
+          export PATH="$JAVA_HOME/bin:$PATH"
+          mvn -B -ntp test
