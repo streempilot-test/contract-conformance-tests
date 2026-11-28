@@ -17,8 +17,8 @@ jobs:
           - cc: clang
             cxx: clang++
     env:
-      SOURCE_HEAD: 05e73e5ad3563fcaec05ec614b753a1b5c9b4cea
-      SOURCE_TREE: c66a7d96fb4de9acee8fdc5203feb3baa4e32bae
+      SOURCE_HEAD: 336a3e22d0983d5131e36138ba2cfc205d60af97
+      SOURCE_TREE: 32d3f0c7fb657f5cc8364b47a912826f8d2dd5d0
       CC: ${{ matrix.cc }}
       CXX: ${{ matrix.cxx }}
       GIT_TERMINAL_PROMPT: '0'
