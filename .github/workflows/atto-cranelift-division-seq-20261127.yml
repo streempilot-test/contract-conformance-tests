@@ -1,0 +1,28 @@
+name: Atto native division explicit sequence regression
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/atto-cranelift-division-seq-20261127.yml']
+permissions:
+  contents: read
+jobs:
+  native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Fetch exact public source
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.cranelift.git bc37e6e4b3bdcc2d1a74d3a4b69e4a9539df6677
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = bc37e6e4b3bdcc2d1a74d3a4b69e4a9539df6677
+          git -C source rev-parse HEAD^{tree}
+      - name: Compile and execute native division fault order
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd source
+          cargo test --locked --test checked_division_aot -- --nocapture
