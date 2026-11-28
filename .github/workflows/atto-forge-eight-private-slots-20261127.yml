@@ -1,0 +1,39 @@
+name: Atto Forge private eight-slot ABI
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/atto-forge-eight-private-slots-20261127.yml']
+permissions:
+  contents: read
+jobs:
+  native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - cc: gcc
+            cxx: g++
+          - cc: clang
+            cxx: clang++
+    steps:
+      - name: Fetch exact public source
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.forge.git e86e62822a0c85644dfbbe0dc2e8385b3990da54
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = e86e62822a0c85644dfbbe0dc2e8385b3990da54
+          git -C source rev-parse HEAD^{tree}
+      - name: Build compiler and execute real linked native callable matrix
+        env:
+          CC: ${{ matrix.cc }}
+          CXX: ${{ matrix.cxx }}
+        run: |
+          set -euo pipefail
+          cd source
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+          cmake --build build --target oresforge -j2
+          ctest --test-dir build -R '^oresforge_real_native_recursive_calls$' --output-on-failure --verbose --no-tests=error
