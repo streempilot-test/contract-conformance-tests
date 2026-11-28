@@ -1,0 +1,50 @@
+name: Exact JS recursive Record static projection regression
+on:
+  push:
+    branches: [verify/atto-js-recursive-record-20261127]
+permissions:
+  contents: read
+jobs:
+  exact-source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      GIT_TERMINAL_PROMPT: '0'
+      SOURCE_SHA: ec572f65e851b6eff42158c954d59a7c083b009a
+      SOURCE_TREE: 34b9bf9d1ad399b633ba6d4bb9871778cc5dbe51
+    steps:
+      - name: Fetch public source anonymously and verify exact commit and root tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          git init "$RUNNER_TEMP/atto-js"
+          cd "$RUNNER_TEMP/atto-js"
+          git -c credential.helper= -c http.extraheader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.js.git "$SOURCE_SHA"
+          git checkout --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          test "$(git rev-parse HEAD^{tree})" = "$SOURCE_TREE"
+          git fsck --strict --no-dangling
+          git status --porcelain
+          printf 'EXACT_PUBLIC_SOURCE %s %s\n' "$SOURCE_SHA" "$SOURCE_TREE"
+      - name: Execute focused compiler and generated JS guest tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/atto-js"
+          node_dir=$(find /opt/hostedtoolcache/node -mindepth 1 -maxdepth 1 -type d -name '22.*' | sort -V | tail -1)
+          test -n "$node_dir"
+          export PATH="$node_dir/x64/bin:$PATH"
+          node --version
+          node --check src/compiler.mjs
+          node --test tests/named-aggregate-type-inference.test.mjs tests/recursive-record-static-projection.test.mjs
+      - name: Execute full JS regression and compiler syntax checks
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/atto-js"
+          node_dir=$(find /opt/hostedtoolcache/node -mindepth 1 -maxdepth 1 -type d -name '22.*' | sort -V | tail -1)
+          test -n "$node_dir"
+          export PATH="$node_dir/x64/bin:$PATH"
+          npm run check
+          npm test
