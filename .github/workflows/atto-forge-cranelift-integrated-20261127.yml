@@ -1,0 +1,59 @@
+name: Atto integrated native call parity
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/atto-forge-cranelift-integrated-20261127.yml']
+permissions:
+  contents: read
+jobs:
+  forge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - cc: gcc
+            cxx: g++
+          - cc: clang
+            cxx: clang++
+    steps:
+      - name: Reconstruct exact public integration
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= fetch --no-tags https://github.com/atto-lang/atto-source.forge.git 76b7f6d1850d0938322b7afd23e82b267a65eec0 e86e62822a0c85644dfbbe0dc2e8385b3990da54
+          git -C source checkout --detach 76b7f6d1850d0938322b7afd23e82b267a65eec0
+          git -C source -c user.name=CI -c user.email=ci@example.invalid merge --no-edit --no-ff e86e62822a0c85644dfbbe0dc2e8385b3990da54
+          git -C source rev-parse HEAD^{tree}
+      - name: Native compiler and real callable matrix
+        env:
+          CC: ${{ matrix.cc }}
+          CXX: ${{ matrix.cxx }}
+        run: |
+          set -euo pipefail
+          cd source
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+          cmake --build build --target oresforge -j2
+          ctest --test-dir build -R '^oresforge_real_native_recursive_calls$' --output-on-failure --verbose --no-tests=error
+  cranelift:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Reconstruct exact public integration
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= fetch --no-tags https://github.com/atto-lang/atto-source.cranelift.git 41bad78fafadeea334e096e7ac86b177c18a648f c0a453ab5ec695d7e51325a20c31f4bb51ad50ea
+          git -C source checkout --detach 41bad78fafadeea334e096e7ac86b177c18a648f
+          git -C source -c user.name=CI -c user.email=ci@example.invalid merge --no-edit --no-ff c0a453ab5ec695d7e51325a20c31f4bb51ad50ea
+          git -C source rev-parse HEAD^{tree}
+      - name: Actual native linked predicates and all-target regression
+        run: |
+          set -euo pipefail
+          cd source
+          cargo test --locked --test linked_native_arena_predicates -- --nocapture
+          cargo test --locked --all-targets
+          cargo clippy --locked --all-targets -- -D warnings
