@@ -10,8 +10,8 @@ jobs:
     timeout-minutes: 15
     env:
       GIT_TERMINAL_PROMPT: '0'
-      SOURCE_SHA: c8f5f12f761da90140c30ff329ded7c64bf97917
-      SOURCE_TREE: 11739883e415029b6d7749ec7812cc5f57217a6e
+      SOURCE_SHA: 4d2c2162795aa81fd51b6855f6384ff0b2602f9c
+      SOURCE_TREE: 8b2181734e5bc442097c52134f39453592a0974d
     steps:
       - name: Fetch public source anonymously and verify exact commit and root tree
         shell: bash
