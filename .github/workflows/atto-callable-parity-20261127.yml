@@ -13,13 +13,9 @@ jobs:
       matrix:
         include:
           - repo: atto-source.java
-            head: 677ac2d2e21a5c1def2593565d47be7778ef2e55
+            head: bf4a1acb8eaffc987fe4cc24f4181ab19432dd72
             lane: java
-            tree: 0ab080ff4e3cb45763a61df19ada91335a34a0eb
-          - repo: atto-source.js
-            head: a58ca22d64dd3b39c1f9156c033ffaeb4dd7c6b5
-            lane: js
-            tree: 7e94d9bab3e1070dd0a19b59fae8b31b101e84b9
+            tree: ab20a5e8e4e09a43803a52fa11c4466e59544e7b
     env:
       SOURCE_REPO: ${{ matrix.repo }}
       SOURCE_HEAD: ${{ matrix.head }}
@@ -31,7 +27,7 @@ jobs:
         run: |
           set -euo pipefail
           case "$SOURCE_REPO:$SOURCE_HEAD:$SOURCE_TREE" in
-            atto-source.java:677ac2d2e21a5c1def2593565d47be7778ef2e55:0ab080ff4e3cb45763a61df19ada91335a34a0eb|atto-source.js:a58ca22d64dd3b39c1f9156c033ffaeb4dd7c6b5:7e94d9bab3e1070dd0a19b59fae8b31b101e84b9) ;;
+            atto-source.java:bf4a1acb8eaffc987fe4cc24f4181ab19432dd72:ab20a5e8e4e09a43803a52fa11c4466e59544e7b) ;;
             *) exit 1 ;;
           esac
           mkdir source
