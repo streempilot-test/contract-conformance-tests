@@ -1,0 +1,38 @@
+name: Atto browser compiler allocation policy
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/atto-browser-arena-policy-mask-v1.yml']
+permissions:
+  contents: read
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Fetch exact public source and compiler
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          for repo in wasm rs; do
+            if [[ "$repo" == wasm ]]; then head=12a7340ef05fbe95c7946ba050766d17411b6daa; else head=8ef911ab903037699c5d6b047afb180799daa37d; fi
+            git init "$repo"
+            git -C "$repo" -c credential.helper= fetch --no-tags --depth=1 "https://github.com/atto-lang/atto-source.$repo.git" "$head"
+            git -C "$repo" checkout --detach FETCH_HEAD
+            test "$(git -C "$repo" rev-parse HEAD)" = "$head"
+            git -C "$repo" rev-parse HEAD^{tree}
+          done
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build actual browser compiler and run generated guests
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.85.1 --profile minimal --target wasm32-unknown-unknown
+          (cd rs && cargo +1.85.1 build --locked --release --target wasm32-unknown-unknown --lib)
+          export ATTO_BROWSER_SOURCE_ROOT="$PWD/rs"
+          export ATTO_BROWSER_COMPILER="$PWD/rs/target/wasm32-unknown-unknown/release/atto_compiler.wasm"
+          export ATTO_BROWSER_COMPILER_SHA256="$(sha256sum "$ATTO_BROWSER_COMPILER" | cut -d ' ' -f 1)"
+          export ATTO_ARENA_BROWSER_REQUIRED=1
+          cd wasm
+          node --test tests/arena-policy-browser-compiler.test.mjs
