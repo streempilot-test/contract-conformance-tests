@@ -1,0 +1,54 @@
+name: Exact Rust Record delimiter compiler
+on:
+  push:
+    branches: [verify/atto-rust-distinct-dynrecord-20261127]
+permissions:
+  contents: read
+jobs:
+  exact-source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      GIT_TERMINAL_PROMPT: '0'
+      SOURCE_SHA: 9c7582905b048db610a770c42dbdf1169c384828
+      SOURCE_TREE: a50ed9f75eb9f93aa555102489b03b9979870f01
+    steps:
+      - name: Fetch public Rust source and verify exact commit and tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          git init "$RUNNER_TEMP/atto-rust"
+          cd "$RUNNER_TEMP/atto-rust"
+          git -c credential.helper= -c http.extraheader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.rs.git "$SOURCE_SHA"
+          git checkout --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          test "$(git rev-parse HEAD^{tree})" = "$SOURCE_TREE"
+          git fsck --strict --no-dangling
+          printf 'EXACT_PUBLIC_SOURCE %s %s\n' "$SOURCE_SHA" "$SOURCE_TREE"
+      - name: Compile and run focused Record tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/atto-rust"
+          rustc --version
+          cargo test --locked --test dynrecord_distinct_shape --test parenthesized_named_record --test quoted_map_keys --test record_bracket_boundaries --test record_bracket_p0 --test record_struct_layout
+      - name: Run Rust full regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/atto-rust"
+          cargo test --locked --all-targets --no-fail-fast
+      - name: Execute native and Wasm-hosted compiler guests independently of full-suite failure
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/atto-rust"
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          test "$(git rev-parse HEAD^{tree})" = "$SOURCE_TREE"
+          node --version
+          node --check tests/closed_record_guest.mjs
+          rustup target add wasm32-unknown-unknown
+          cargo build --locked --release --bin attoc
+          cargo build --locked --release --target wasm32-unknown-unknown --lib
+          node tests/closed_record_guest.mjs
