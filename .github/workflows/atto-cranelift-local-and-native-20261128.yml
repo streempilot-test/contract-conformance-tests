@@ -1,0 +1,28 @@
+name: Atto Cranelift local and linked native qualification
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/atto-cranelift-local-and-native-20261128.yml']
+permissions:
+  contents: read
+jobs:
+  local:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags https://github.com/atto-lang/atto-source.cranelift.git 0733d38877d00a3fa19c8e928b5c29d5dae64245 49edb5705920afdaaa1daaf1bd558b3393601e31 c0a453ab5ec695d7e51325a20c31f4bb51ad50ea
+          git -C source checkout --detach 0733d38877d00a3fa19c8e928b5c29d5dae64245
+          git -C source -c user.name=CI -c user.email=ci@example.invalid merge --no-edit --no-ff 49edb5705920afdaaa1daaf1bd558b3393601e31
+          git -C source rev-parse HEAD^{tree}
+      - run: cd source && cargo test --locked --test local_const_semantics -- --nocapture
+      - run: |
+          set -euo pipefail
+          cd source
+          git -c user.name=CI -c user.email=ci@example.invalid merge --no-edit --no-ff c0a453ab5ec695d7e51325a20c31f4bb51ad50ea
+          git rev-parse HEAD^{tree}
+          cargo test --locked --test linked_native_arena_predicates -- --nocapture
+          cargo test --locked --all-targets
