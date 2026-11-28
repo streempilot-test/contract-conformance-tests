@@ -1,0 +1,31 @@
+name: Atto current Rust persistent policy
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/atto-rust-current-persistent-policy-v1.yml']
+permissions:
+  contents: read
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Fetch exact current candidate
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.rs.git edc7008331600748ab5a151cbf83209edf35fe5c
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = edc7008331600748ab5a151cbf83209edf35fe5c
+          git -C source rev-parse HEAD^{tree}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: |
+          set -euo pipefail
+          cd source
+          test "$(git hash-object tests/arena-policy-differential-v1.mjs)" = f98055af7bb9b8952664946d2b2a1f3a735dc283
+          rustup toolchain install 1.85.1 --profile minimal
+          cargo +1.85.1 build --locked --release --bin attoc
+          ATTOC="$PWD/target/release/attoc" node tests/arena-quota-lifecycle-guest.mjs
