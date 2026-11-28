@@ -12,10 +12,18 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - repo: atto-source.cranelift
-            head: 5f3370235501982fe872fa7ef89121e182c53e4e
-            lane: cranelift
-            tree: a665cbd1558c05a2db262652931da4bf71afd6dc
+          - repo: atto-source.rs
+            head: 51bca5fe37f5ef8b6cfe719ce0a42c1aa44b74a3
+            lane: rust
+            tree: 11e3a7b573a2ea133c243ebae020d69bdb9d5360
+          - repo: atto-source.java
+            head: 00b8e2ccd575cb2b249d07857d7e26bee7560dc7
+            lane: java
+            tree: 03ee9d84aaa7e74a627ad2e7b8ef712adf457e15
+          - repo: atto-source.llvm
+            head: c917e9ae0153f0003461349074879ad570374c35
+            lane: llvm
+            tree: 7229f98e568876ea0ee22475be0148607b293ba3
     env:
       SOURCE_REPO: ${{ matrix.repo }}
       SOURCE_HEAD: ${{ matrix.head }}
@@ -27,7 +35,7 @@ jobs:
         run: |
           set -euo pipefail
           case "$SOURCE_REPO:$SOURCE_HEAD:$SOURCE_TREE" in
-            atto-source.rs:719fe8a9dd77a49e96c2066d706d3fdbfa136d4a:7ce5f1b5c7d71786adf79719b7c5848d023311bc|atto-source.cranelift:5f3370235501982fe872fa7ef89121e182c53e4e:a665cbd1558c05a2db262652931da4bf71afd6dc|atto-source.net:bf08f80662361484ecfb5f59e4a5cf0ada31825c:cb07cf4ee2525e7869229d4136b0117e2d395e00|atto-source.java:1067d51ea984d115b720dacdabd2891a7d782e04:157b19c41c1b892814482aab0948ff03a0c853ac|atto-source.llvm:c917e9ae0153f0003461349074879ad570374c35:7229f98e568876ea0ee22475be0148607b293ba3) ;;
+            atto-source.rs:51bca5fe37f5ef8b6cfe719ce0a42c1aa44b74a3:11e3a7b573a2ea133c243ebae020d69bdb9d5360|atto-source.java:00b8e2ccd575cb2b249d07857d7e26bee7560dc7:03ee9d84aaa7e74a627ad2e7b8ef712adf457e15|atto-source.llvm:c917e9ae0153f0003461349074879ad570374c35:7229f98e568876ea0ee22475be0148607b293ba3) ;;
             *) exit 1 ;;
           esac
           mkdir source
@@ -48,7 +56,7 @@ jobs:
           case "$LANE" in
             rust)
               rustc --version
-              cargo test --locked --test structural_ast_depth_cli --test source_callable_types --test call_spread_ellipsis_admission --test direct_lambda --test direct_lambda_audit
+              cargo test --locked --test source_control_admission --test source_unicode_control_admission --test structural_ast_depth_cli --test source_callable_types --test call_spread_ellipsis_admission --test direct_lambda --test direct_lambda_audit
               cargo build --locked --bin attoc
               node tests/callable_guest_execution.mjs
               cargo test --locked --all-targets
@@ -71,10 +79,20 @@ jobs:
               sudo apt-get update
               sudo apt-get install -y build-essential cmake clang llvm-dev jq
               cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
-              cmake --build build --parallel 2 --target oreslang-llvmc
+              cmake --build build --parallel 2 --target oreslang-llvmc oreslang-rust-test-harness
               ctest --test-dir build --show-only=json-v1 > build/named-call-tests.json
               for name in native_shared_named_equals native_shared_named_mixed native_shared_named_positional native_shared_named_order_reject native_shared_named_unknown_reject native_shared_named_duplicate_reject native_shared_named_pair_reject; do
                 jq -e --arg name "$name" '.tests | any(.name == $name)' build/named-call-tests.json >/dev/null
+              done
+              # Print the actual diagnostic of the two pre-existing fixtures
+              # without altering their CTest expectations.
+              for fixture in named-call-mut-borrow-native.ores named-call-mut-borrow-after-loan-reject.ores; do
+                set +e
+                build/oreslang-llvmc "tests/fixtures/$fixture" >"$RUNNER_TEMP/llvm-fixture.out" 2>"$RUNNER_TEMP/llvm-fixture.err"
+                status=$?
+                set -e
+                printf '%s: diagnostic probe status=%s\n' "$fixture" "$status"
+                cat "$RUNNER_TEMP/llvm-fixture.err"
               done
               ctest --test-dir build -R '^native_(shared_named_|named_(call_|member_))' --output-on-failure --no-tests=error --timeout 180 --parallel 2
               ;;
