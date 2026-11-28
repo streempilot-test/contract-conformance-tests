@@ -1,0 +1,30 @@
+name: Atto linked native arena predicates
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/atto-cranelift-arena-predicates-20261127.yml']
+permissions:
+  contents: read
+jobs:
+  native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Fetch exact public source
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.cranelift.git c0a453ab5ec695d7e51325a20c31f4bb51ad50ea
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = c0a453ab5ec695d7e51325a20c31f4bb51ad50ea
+          git -C source rev-parse HEAD^{tree}
+      - name: Execute actual compiler and regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd source
+          cargo test --locked --test linked_native_arena_predicates -- --nocapture
+          cargo test --locked --all-targets
+          cargo clippy --locked --all-targets -- -D warnings
