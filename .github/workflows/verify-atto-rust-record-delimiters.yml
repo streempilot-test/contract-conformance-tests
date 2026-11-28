@@ -10,8 +10,8 @@ jobs:
     timeout-minutes: 25
     env:
       GIT_TERMINAL_PROMPT: '0'
-      SOURCE_SHA: 879c16bd9a377168e340644e75c40e7cdb20d05d
-      SOURCE_TREE: 899f4bcf42932e48a335789dfa9f71e9b8365c3f
+      SOURCE_SHA: 9d5b5d88212ebb151a072cd735019c2d45024fe8
+      SOURCE_TREE: ac4efe8ae272663b21dcd53e5e3b95ae2a2dd3f7
     steps:
       - name: Fetch public Rust source and verify exact commit and tree
         shell: bash
