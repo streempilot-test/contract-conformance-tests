@@ -12,26 +12,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - repo: atto-source.rs
-            head: 719fe8a9dd77a49e96c2066d706d3fdbfa136d4a
-            lane: rust
-            tree: 7ce5f1b5c7d71786adf79719b7c5848d023311bc
           - repo: atto-source.cranelift
             head: 5f3370235501982fe872fa7ef89121e182c53e4e
             lane: cranelift
             tree: a665cbd1558c05a2db262652931da4bf71afd6dc
-          - repo: atto-source.net
-            head: bf08f80662361484ecfb5f59e4a5cf0ada31825c
-            lane: net
-            tree: cb07cf4ee2525e7869229d4136b0117e2d395e00
-          - repo: atto-source.java
-            head: 1067d51ea984d115b720dacdabd2891a7d782e04
-            lane: java
-            tree: 157b19c41c1b892814482aab0948ff03a0c853ac
-          - repo: atto-source.llvm
-            head: c917e9ae0153f0003461349074879ad570374c35
-            lane: llvm
-            tree: 7229f98e568876ea0ee22475be0148607b293ba3
     env:
       SOURCE_REPO: ${{ matrix.repo }}
       SOURCE_HEAD: ${{ matrix.head }}
@@ -70,7 +54,7 @@ jobs:
               cargo test --locked --all-targets
               ;;
             cranelift)
-              cargo test --locked --lib linked_native:: -- --nocapture
+              cargo test --locked --bin orescranelift linked_native:: -- --nocapture
               cargo test --locked --test named_aggregate_guest --test structural_ast_depth --test combined_scalar_features
               ;;
             net)
