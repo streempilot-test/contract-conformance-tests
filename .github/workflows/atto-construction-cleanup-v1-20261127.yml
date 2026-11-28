@@ -1,0 +1,23 @@
+name: Atto contextual construction cleanup reference
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/atto-construction-cleanup-v1-20261127.yml']
+permissions:
+  contents: read
+jobs:
+  reference:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Fetch exact public source and execute reference
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-common-source.git 45c80127dc276403c1b51951026fb9676949a23c
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = 45c80127dc276403c1b51951026fb9676949a23c
+          git -C source rev-parse HEAD^{tree}
+          node --test source/tools/contextual-construction-cleanup-v1.test.mjs
