@@ -1,0 +1,35 @@
+name: Atto named recursive arity regression
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/atto-named-recursive-arity-20261128.yml']
+permissions:
+  contents: read
+jobs:
+  native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags https://github.com/atto-lang/atto-source.cranelift.git 3fde92edd8c07913a799b2012ca46740441f003d f3ac0bf09f402dd9446260626ba9169c4f892737
+          git -C source checkout --detach 3fde92edd8c07913a799b2012ca46740441f003d
+          git -C source rev-parse HEAD^{tree}
+      - name: Reproduce exact baseline diagnostic drift
+        run: |
+          set -euo pipefail
+          cd source
+          if cargo test --locked --test named_recursive_native -- --nocapture > /tmp/baseline.log 2>&1; then cat /tmp/baseline.log; exit 1; fi
+          cat /tmp/baseline.log
+          grep -F 'E_PIPE_ARITY_LIMIT' /tmp/baseline.log
+          grep -F 'E_NAMED_STAGE_CLOSED_INT' /tmp/baseline.log
+      - name: Verify exact corrected native guest suite
+        run: |
+          set -euo pipefail
+          cd source
+          git checkout --detach f3ac0bf09f402dd9446260626ba9169c4f892737
+          test "$(git rev-parse HEAD)" = f3ac0bf09f402dd9446260626ba9169c4f892737
+          git rev-parse HEAD^{tree}
+          cargo test --locked --test named_recursive_native -- --nocapture
