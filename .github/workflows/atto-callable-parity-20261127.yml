@@ -1,0 +1,108 @@
+name: Atto public callable parity exact-head audit
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/atto-callable-parity-20261127.yml'
+permissions: {}
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - repo: atto-source.rs
+            head: 77187515cbb68fbfc6973797bb189dded4d57774
+            lane: rust
+            tree: db09a4967252528c17f8d9f54f7314bc861a763b
+    env:
+      SOURCE_REPO: ${{ matrix.repo }}
+      SOURCE_HEAD: ${{ matrix.head }}
+      LANE: ${{ matrix.lane }}
+      SOURCE_TREE: ${{ matrix.tree }}
+    steps:
+      - name: Anonymous public source fetch and exact physical Git identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$SOURCE_REPO:$SOURCE_HEAD:$SOURCE_TREE" in
+            atto-source.rs:77187515cbb68fbfc6973797bb189dded4d57774:db09a4967252528c17f8d9f54f7314bc861a763b) ;;
+            *) exit 1 ;;
+          esac
+          mkdir source
+          cd source
+          git init
+          GIT_TERMINAL_PROMPT=0 git -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 "https://github.com/atto-lang/$SOURCE_REPO.git" "$SOURCE_HEAD"
+          git checkout --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = "$SOURCE_HEAD"
+          test "$(git write-tree)" = "$SOURCE_TREE"
+          test "$(git rev-parse 'HEAD^{tree}')" = "$SOURCE_TREE"
+          git diff --exit-code HEAD --
+          git rev-parse HEAD 'HEAD^{tree}'
+      - name: Execute scoped tests
+        shell: bash
+        working-directory: source
+        run: |
+          set -euo pipefail
+          case "$LANE" in
+            rust-fixtures)
+              cargo test --locked --no-fail-fast --test class_mtd_execution --test inline_method_body_matrix --test nominal_actor_struct_implements
+              ;;
+            rust-baseline|rust-compare)
+              # Both lanes have identical repaired harness and source admission
+              # files. Only the callable feature and its new tests differ.
+              cargo test --locked --no-fail-fast --test class_mtd_execution --test copy_nested_immutable --test fixtures --test inline_method_body_matrix --test nominal_actor_struct_implements --test scoped_using_timeout_gate --test stdlib_native_guest --test task_sync_admission --test v2_scoped_resources
+              ;;
+            rust)
+              rustc --version
+              cargo test --locked --test actor_implements_mtd_runtime --test source_control_admission --test source_unicode_control_admission --test structural_ast_depth_cli --test source_callable_types --test call_spread_ellipsis_admission --test direct_lambda --test direct_lambda_audit
+              cargo build --locked --bin attoc
+              node tests/callable_guest_execution.mjs
+              cargo test --locked --all-targets --no-fail-fast
+              ;;
+            cranelift)
+              cargo test --locked --bin orescranelift linked_native:: -- --nocapture
+              cargo test --locked --test named_aggregate_guest --test structural_ast_depth --test combined_scalar_features
+              ;;
+            net)
+              dotnet --info
+              dotnet run --configuration Release --project verification/Ores.Net.Tests/Ores.Net.Tests.csproj -- --empty-local-products | tee "$RUNNER_TEMP/product-receipt.log"
+              grep -Fx 'EMPTY_LOCAL_PRODUCT_CORECLR_PASS positives=10 negatives=15' "$RUNNER_TEMP/product-receipt.log"
+              ;;
+            js)
+              node --version
+              node --test tests/stored-static-product-apply.test.mjs tests/static-fnc-call-apply.test.mjs tests/named-argument-separators-v1.test.mjs tests/named-aggregate-type-inference.test.mjs
+              ;;
+            java)
+              export JAVA_HOME="$JAVA_HOME_21_X64"
+              export PATH="$JAVA_HOME/bin:$PATH"
+              mvn -B -Dtest=IntrinsicContextualSingletonTupleTest,RecursiveRecordParserTest test
+              ;;
+            llvm)
+              sudo apt-get update
+              sudo apt-get install -y build-essential cmake clang llvm-dev jq
+              cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+              cmake --build build --parallel 2 --target oreslang-llvmc oreslang-rust-test-harness
+              ctest --test-dir build --show-only=json-v1 > build/named-call-tests.json
+              for name in native_shared_named_equals native_shared_named_mixed native_shared_named_positional native_shared_named_order_reject native_shared_named_unknown_reject native_shared_named_duplicate_reject native_shared_named_pair_reject; do
+                jq -e --arg name "$name" '.tests | any(.name == $name)' build/named-call-tests.json >/dev/null
+              done
+              # Print the actual diagnostic of the two pre-existing fixtures
+              # without altering their CTest expectations.
+              for fixture in named-call-mut-borrow-native.ores named-call-mut-borrow-after-loan-reject.ores; do
+                set +e
+                build/oreslang-llvmc "tests/fixtures/$fixture" >"$RUNNER_TEMP/llvm-fixture.out" 2>"$RUNNER_TEMP/llvm-fixture.err"
+                status=$?
+                set -e
+                printf '%s: diagnostic probe status=%s\n' "$fixture" "$status"
+                cat "$RUNNER_TEMP/llvm-fixture.err"
+              done
+              ctest --test-dir build -R '^native_(shared_named_|named_(call_|member_))' --output-on-failure --no-tests=error --timeout 180 --parallel 2
+              ;;
+            *) exit 1 ;;
+          esac
+          test "$(git rev-parse HEAD)" = "$SOURCE_HEAD"
+          test "$(git write-tree)" = "$SOURCE_TREE"
+          test "$(git rev-parse 'HEAD^{tree}')" = "$SOURCE_TREE"
+          git diff --exit-code HEAD --
