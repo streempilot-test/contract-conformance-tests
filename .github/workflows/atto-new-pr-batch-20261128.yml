@@ -1,0 +1,223 @@
+name: Atto new PR integration batch
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/atto-new-pr-batch-20261128.yml']
+permissions:
+  contents: read
+jobs:
+  java_2087:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Exact public integration
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags https://github.com/atto-lang/atto-source.java.git 94ba0779b39a36a802cd7e9c7c40040e00be05b0 66f7bbb99576bd493b3bfced2c01b1af992a89e8
+          git -C source checkout --detach 66f7bbb99576bd493b3bfced2c01b1af992a89e8
+          git -C source -c user.name=CI -c user.email=ci@example.invalid merge --no-edit --no-ff 94ba0779b39a36a802cd7e9c7c40040e00be05b0
+          git -C source rev-parse HEAD^{tree}
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: Execute candidate tests
+        run: |
+          set -euo pipefail
+          cd source
+          mvn -B -Dtest=SymbolConstructorCandidateTest,RecursiveRecordParserTest test
+  java_2084:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Exact public integration
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags https://github.com/atto-lang/atto-source.java.git 26d7296002a759202f6838a16e7e19da497cf399 66f7bbb99576bd493b3bfced2c01b1af992a89e8
+          git -C source checkout --detach 66f7bbb99576bd493b3bfced2c01b1af992a89e8
+          git -C source -c user.name=CI -c user.email=ci@example.invalid merge --no-edit --no-ff 26d7296002a759202f6838a16e7e19da497cf399
+          git -C source rev-parse HEAD^{tree}
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: Execute candidate tests
+        run: |
+          set -euo pipefail
+          cd source
+          mvn -B -Dtest=OresVMTest,NativeCarrierExecutorLazyStartupTest test
+  java_2070:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Exact public integration
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags https://github.com/atto-lang/atto-source.java.git 5dee3808d03841be7806a85d92ba817f509df34b 66f7bbb99576bd493b3bfced2c01b1af992a89e8
+          git -C source checkout --detach 66f7bbb99576bd493b3bfced2c01b1af992a89e8
+          git -C source -c user.name=CI -c user.email=ci@example.invalid merge --no-edit --no-ff 5dee3808d03841be7806a85d92ba817f509df34b
+          git -C source rev-parse HEAD^{tree}
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: Execute candidate tests
+        run: |
+          set -euo pipefail
+          cd source
+          mvn -B -Dtest=ClassConstructorHardeningTest test
+  net_425:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Exact public integration
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags https://github.com/atto-lang/atto-source.net.git 0ce6e41761739ae05739e1504d0c1cc445219e76 ad53988351a6957b8477ab9fb0c57c6a68761a29
+          git -C source checkout --detach ad53988351a6957b8477ab9fb0c57c6a68761a29
+          git -C source -c user.name=CI -c user.email=ci@example.invalid merge --no-edit --no-ff 0ce6e41761739ae05739e1504d0c1cc445219e76
+          git -C source rev-parse HEAD^{tree}
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Execute candidate tests
+        run: |
+          set -euo pipefail
+          cd source
+          bash scripts/test-cil-guest.sh
+  net_419:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Exact public integration
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags https://github.com/atto-lang/atto-source.net.git 13916f6af9f14da502104fedf78fc513a564474d ad53988351a6957b8477ab9fb0c57c6a68761a29
+          git -C source checkout --detach ad53988351a6957b8477ab9fb0c57c6a68761a29
+          git -C source -c user.name=CI -c user.email=ci@example.invalid merge --no-edit --no-ff 13916f6af9f14da502104fedf78fc513a564474d
+          git -C source rev-parse HEAD^{tree}
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Execute candidate tests
+        run: |
+          set -euo pipefail
+          cd source
+          dotnet run -c Release --project tests/Atto.Udp.Host
+  net_414:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Exact public integration
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags https://github.com/atto-lang/atto-source.net.git 955ddca1a99e5520dffe0ebe20f94c546f170724 ad53988351a6957b8477ab9fb0c57c6a68761a29
+          git -C source checkout --detach ad53988351a6957b8477ab9fb0c57c6a68761a29
+          git -C source -c user.name=CI -c user.email=ci@example.invalid merge --no-edit --no-ff 955ddca1a99e5520dffe0ebe20f94c546f170724
+          git -C source rev-parse HEAD^{tree}
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Execute candidate tests
+        run: |
+          set -euo pipefail
+          cd source
+          bash ci/test-readonly-reference-nativeaot.sh
+  net_413:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Exact public integration
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags https://github.com/atto-lang/atto-source.net.git 2cbb026cbcefa024fe4692bdeaf03158a853dd6b ad53988351a6957b8477ab9fb0c57c6a68761a29
+          git -C source checkout --detach ad53988351a6957b8477ab9fb0c57c6a68761a29
+          git -C source -c user.name=CI -c user.email=ci@example.invalid merge --no-edit --no-ff 2cbb026cbcefa024fe4692bdeaf03158a853dd6b
+          git -C source rev-parse HEAD^{tree}
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Execute candidate tests
+        run: |
+          set -euo pipefail
+          cd source
+          dotnet run -c Release --project verification/Ores.Net.BindingArrow.Tests
+  js_321:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Exact public integration
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags https://github.com/atto-lang/atto-source.js.git 14931a99e334eac0db79f748a7cdbb5485d1c37f 957ab97d66890b11fe66e9199ec8bae366749114
+          git -C source checkout --detach 957ab97d66890b11fe66e9199ec8bae366749114
+          git -C source -c user.name=CI -c user.email=ci@example.invalid merge --no-edit --no-ff 14931a99e334eac0db79f748a7cdbb5485d1c37f
+          git -C source rev-parse HEAD^{tree}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Execute candidate tests
+        run: |
+          set -euo pipefail
+          cd source
+          node --test tests/readonly-reference-v1.test.mjs
+  forge_370:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Exact public integration
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags https://github.com/atto-lang/atto-source.forge.git 15d458998a2cffcde760c7efc7a54de34e89306c 3c6b66c25db30ab32bc25173deb18d88fc3a52be
+          git -C source checkout --detach 3c6b66c25db30ab32bc25173deb18d88fc3a52be
+          git -C source -c user.name=CI -c user.email=ci@example.invalid merge --no-edit --no-ff 15d458998a2cffcde760c7efc7a54de34e89306c
+          git -C source rev-parse HEAD^{tree}
+      - name: Execute candidate tests
+        run: |
+          set -euo pipefail
+          cd source
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON
+          cmake --build build -j2
+          ctest --test-dir build -R scalar --output-on-failure --no-tests=error
+  rs_835:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Exact public integration
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags https://github.com/atto-lang/atto-source.rs.git 77187515cbb68fbfc6973797bb189dded4d57774 035e47a55024dba59f1f52cdeee6dc7e3cec3f83
+          git -C source checkout --detach 035e47a55024dba59f1f52cdeee6dc7e3cec3f83
+          git -C source -c user.name=CI -c user.email=ci@example.invalid merge --no-edit --no-ff 77187515cbb68fbfc6973797bb189dded4d57774
+          git -C source rev-parse HEAD^{tree}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Execute candidate tests
+        run: |
+          set -euo pipefail
+          cd source
+          rustup toolchain install 1.85.1 --profile minimal
+          cargo +1.85.1 test --locked --test source_callable_types --test structural_ast_depth_cli
+          cargo +1.85.1 build --locked --release --bin attoc
+          node tests/callable_guest_execution.mjs
