@@ -1,4 +1,4 @@
-name: Exact Java Record delimiter parser
+name: Exact Java Record delimiter parser — dependency retry
 on:
   push:
     branches: [verify/atto-java-dynrecord-equals-20261127]
