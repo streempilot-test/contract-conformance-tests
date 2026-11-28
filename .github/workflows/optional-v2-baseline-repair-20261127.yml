@@ -22,8 +22,8 @@ jobs:
             test: ownership_bang_admission
             baseline: true
           - repo: atto-lang/atto-source.rs
-            head: c794272753c8adf363ca3ba511f0156d193cfca1
-            tree: 851a4d3442c4682e9a6619861cdcd46871708904
+            head: 062526d2e5bc7b4e72bef050c63c483a6e8849b7
+            tree: ce7bee9ecd2fdb0b2ac54888fd79a77c2a1ad57c
             dir: .
             test: ownership_bang_admission
             baseline: false
