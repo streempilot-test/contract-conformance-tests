@@ -1,0 +1,42 @@
+name: Exact formatter Record key-domain regression
+on:
+  push:
+    branches: [verify/atto-format-record-key-domains-20261127]
+permissions:
+  contents: read
+jobs:
+  exact-source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      GIT_TERMINAL_PROMPT: '0'
+      SOURCE_SHA: 6dd174f84610ba46d98caa7f1887e6fe58f73299
+      SOURCE_TREE: 7a60955c85ac69cbeefb5c0d327e56124985d7a9
+    steps:
+      - name: Verify exact public formatter source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git init "$RUNNER_TEMP/atto-format"
+          cd "$RUNNER_TEMP/atto-format"
+          git -c credential.helper= -c http.extraheader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-format.git "$SOURCE_SHA"
+          git checkout --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          test "$(git rev-parse HEAD^{tree})" = "$SOURCE_TREE"
+          git fsck --strict --no-dangling
+          test -z "$(git status --porcelain)"
+          printf 'EXACT_PUBLIC_SOURCE %s %s\n' "$SOURCE_SHA" "$SOURCE_TREE"
+      - name: Execute focused fixed-point regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/atto-format"
+          rustc --version
+          cargo --version
+          cargo test --locked --test recursive_product_literals
+      - name: Execute full formatter suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/atto-format"
+          cargo test --locked --all-targets
