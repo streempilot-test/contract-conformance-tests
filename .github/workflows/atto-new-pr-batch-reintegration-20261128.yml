@@ -1,0 +1,93 @@
+name: Atto new PR reintegration
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/atto-new-pr-batch-reintegration-20261128.yml']
+permissions:
+  contents: read
+jobs:
+  net_414:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Exact public integration
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags https://github.com/atto-lang/atto-source.net.git 955ddca1a99e5520dffe0ebe20f94c546f170724 7128cbbce11d0c635d4270a8917316150a349914
+          git -C source checkout --detach 7128cbbce11d0c635d4270a8917316150a349914
+          git -C source -c user.name=CI -c user.email=ci@example.invalid merge --no-edit --no-ff 955ddca1a99e5520dffe0ebe20f94c546f170724
+          git -C source rev-parse HEAD^{tree}
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Execute candidate tests
+        run: |
+          set -euo pipefail
+          cd source
+          bash ci/test-readonly-reference-nativeaot.sh
+  net_413:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Exact public integration
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags https://github.com/atto-lang/atto-source.net.git 2cbb026cbcefa024fe4692bdeaf03158a853dd6b 7128cbbce11d0c635d4270a8917316150a349914
+          git -C source checkout --detach 7128cbbce11d0c635d4270a8917316150a349914
+          git -C source -c user.name=CI -c user.email=ci@example.invalid merge --no-edit --no-ff 2cbb026cbcefa024fe4692bdeaf03158a853dd6b
+          git -C source rev-parse HEAD^{tree}
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Execute candidate tests
+        run: |
+          set -euo pipefail
+          cd source
+          dotnet run -c Release --project verification/Ores.Net.BindingArrow.Tests
+  net_425:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Exact public integration
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags https://github.com/atto-lang/atto-source.net.git 43873e3a042505fb1ff663cd582ad554bf468c47 7128cbbce11d0c635d4270a8917316150a349914
+          git -C source checkout --detach 7128cbbce11d0c635d4270a8917316150a349914
+          git -C source -c user.name=CI -c user.email=ci@example.invalid merge --no-edit --no-ff 43873e3a042505fb1ff663cd582ad554bf468c47
+          git -C source rev-parse HEAD^{tree}
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Execute candidate tests
+        run: |
+          set -euo pipefail
+          cd source
+          bash scripts/test-cil-guest.sh
+  java_2070:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Exact public integration
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags https://github.com/atto-lang/atto-source.java.git 5dee3808d03841be7806a85d92ba817f509df34b 55870892c59ee6a5ebdb39e580fcebcb0aea4fb3
+          git -C source checkout --detach 55870892c59ee6a5ebdb39e580fcebcb0aea4fb3
+          git -C source -c user.name=CI -c user.email=ci@example.invalid merge --no-edit --no-ff 5dee3808d03841be7806a85d92ba817f509df34b
+          git -C source rev-parse HEAD^{tree}
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: Execute candidate tests
+        run: |
+          set -euo pipefail
+          cd source
+          mvn -B -Dtest=ClassConstructorHardeningTest test
