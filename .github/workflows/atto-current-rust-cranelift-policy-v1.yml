@@ -1,0 +1,50 @@
+name: Atto integrated Rust and Cranelift policy
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/atto-current-rust-cranelift-policy-v1.yml']
+permissions:
+  contents: read
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Reconstruct current integration
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= fetch --no-tags https://github.com/atto-lang/atto-source.rs.git 82846b2a19d50aca0576556f3b26e6f019f2e135 d2bcc72559329be3fbe4e6917bbb9bf6173d8650
+          git -C source checkout --detach 82846b2a19d50aca0576556f3b26e6f019f2e135
+          git -C source -c user.name=CI -c user.email=ci@example.invalid merge --no-edit --no-ff d2bcc72559329be3fbe4e6917bbb9bf6173d8650
+          git -C source rev-parse HEAD^{tree}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: |
+          set -euo pipefail
+          cd source
+          test "$(git hash-object tests/arena-policy-differential-v1.mjs)" = f98055af7bb9b8952664946d2b2a1f3a735dc283
+          rustup toolchain install 1.85.1 --profile minimal
+          cargo +1.85.1 build --locked --release --bin attoc
+          ATTOC="$PWD/target/release/attoc" node tests/arena-quota-lifecycle-guest.mjs
+  cranelift:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Reconstruct current integration
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= fetch --no-tags https://github.com/atto-lang/atto-source.cranelift.git c374862aa2c3577e032010cf5c7a085c1fd09b53 c0a453ab5ec695d7e51325a20c31f4bb51ad50ea
+          git -C source checkout --detach c374862aa2c3577e032010cf5c7a085c1fd09b53
+          git -C source -c user.name=CI -c user.email=ci@example.invalid merge --no-edit --no-ff c0a453ab5ec695d7e51325a20c31f4bb51ad50ea
+          git -C source rev-parse HEAD^{tree}
+      - run: |
+          set -euo pipefail
+          cd source
+          cargo test --locked --test linked_native_arena_predicates -- --nocapture
+          cargo test --locked --all-targets
+          cargo clippy --locked --all-targets -- -D warnings
