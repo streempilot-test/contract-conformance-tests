@@ -1,0 +1,51 @@
+name: Atto Forge const dispatch and .NET readonly qualification
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/atto-forge-dispatch-net-readonly-20261128.yml']
+permissions:
+  contents: read
+jobs:
+  forge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Fetch exact candidate
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags https://github.com/atto-lang/atto-source.forge.git 20d36ced6014c7a17f43d0628cc0b8358251d697 15d458998a2cffcde760c7efc7a54de34e89306c
+          git -C source checkout --detach 20d36ced6014c7a17f43d0628cc0b8358251d697
+          git -C source rev-parse HEAD^{tree}
+      - name: Debug assertions enabled
+        run: |
+          set -euo pipefail
+          cd source
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON
+          cmake --build build --target scalar_eval_test scalar_emit_test -j2
+          ctest --test-dir build -R '^scalar_(eval|emit)_test$' --output-on-failure --no-tests=error
+      - name: Merge binding arrow and execute same Debug assertions
+        run: |
+          set -euo pipefail
+          cd source
+          git -c user.name=CI -c user.email=ci@example.invalid merge --no-ff --no-edit 15d458998a2cffcde760c7efc7a54de34e89306c
+          git rev-parse HEAD^{tree}
+          cmake --build build --target scalar_eval_test scalar_emit_test -j2
+          ctest --test-dir build -R '^scalar_(eval|emit)_test$' --output-on-failure --no-tests=error
+  net:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags https://github.com/atto-lang/atto-source.net.git 3534f322969e4dde50be2d177cdfef6532e32d95 955ddca1a99e5520dffe0ebe20f94c546f170724
+          git -C source checkout --detach 3534f322969e4dde50be2d177cdfef6532e32d95
+          git -C source -c user.name=CI -c user.email=ci@example.invalid merge --no-ff --no-edit 955ddca1a99e5520dffe0ebe20f94c546f170724
+          git -C source rev-parse HEAD^{tree}
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - run: cd source && bash ci/test-readonly-reference-nativeaot.sh
