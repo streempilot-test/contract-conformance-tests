@@ -12,10 +12,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - repo: atto-source.java
-            head: bf4a1acb8eaffc987fe4cc24f4181ab19432dd72
-            lane: java
-            tree: ab20a5e8e4e09a43803a52fa11c4466e59544e7b
+          - repo: atto-source.rs
+            head: 46fa1f3aa29994e8249f4a88d5c1e9425f354f3b
+            lane: rust-fixtures
+            tree: 0e234d1987d03c03077678c7e5726083a0e36bba
     env:
       SOURCE_REPO: ${{ matrix.repo }}
       SOURCE_HEAD: ${{ matrix.head }}
@@ -27,7 +27,7 @@ jobs:
         run: |
           set -euo pipefail
           case "$SOURCE_REPO:$SOURCE_HEAD:$SOURCE_TREE" in
-            atto-source.java:bf4a1acb8eaffc987fe4cc24f4181ab19432dd72:ab20a5e8e4e09a43803a52fa11c4466e59544e7b) ;;
+            atto-source.rs:46fa1f3aa29994e8249f4a88d5c1e9425f354f3b:0e234d1987d03c03077678c7e5726083a0e36bba) ;;
             *) exit 1 ;;
           esac
           mkdir source
@@ -46,6 +46,9 @@ jobs:
         run: |
           set -euo pipefail
           case "$LANE" in
+            rust-fixtures)
+              cargo test --locked --no-fail-fast --test class_mtd_execution --test inline_method_body_matrix --test nominal_actor_struct_implements
+              ;;
             rust-baseline|rust-compare)
               # Both lanes have identical repaired harness and source admission
               # files. Only the callable feature and its new tests differ.
