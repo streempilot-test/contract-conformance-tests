@@ -1,0 +1,29 @@
+name: Atto Java compiled differential policy
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/atto-java-arena-differential-v1.yml']
+permissions:
+  contents: read
+jobs:
+  java:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Fetch exact public source
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.java.git 9a21326f736d27860e3538f23c59a0e43d442ad5
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = 9a21326f736d27860e3538f23c59a0e43d442ad5
+          git -C source rev-parse HEAD^{tree}
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: cd source && bash tests/run-arena-policy-differential.sh
