@@ -10,8 +10,8 @@ jobs:
     timeout-minutes: 15
     env:
       GIT_TERMINAL_PROMPT: '0'
-      SOURCE_SHA: 4d2c2162795aa81fd51b6855f6384ff0b2602f9c
-      SOURCE_TREE: 8b2181734e5bc442097c52134f39453592a0974d
+      SOURCE_SHA: 4695e3b0a9b3111d31c3d971c1533dd374639909
+      SOURCE_TREE: 616760f13ba96c94e58537a63dba0fd0a1e978fe
     steps:
       - name: Fetch public source anonymously and verify exact commit and root tree
         shell: bash
@@ -36,7 +36,7 @@ jobs:
           export PATH="$node_dir/x64/bin:$PATH"
           node --version
           node --check src/compiler.mjs
-          node --test tests/named-aggregate-type-inference.test.mjs tests/record-array-constexpr-projection.test.mjs
+          node --test tests/named-aggregate-type-inference.test.mjs tests/record-array-constexpr-projection.test.mjs tests/named-aggregate-module-scalar.test.mjs tests/named-aggregate-reserved-types.test.mjs tests/scalar-seq-return.test.mjs
       - name: Execute full JS regression and compiler syntax checks
         if: success()
         shell: bash
