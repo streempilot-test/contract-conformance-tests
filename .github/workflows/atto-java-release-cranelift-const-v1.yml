@@ -1,0 +1,44 @@
+name: Atto Java release and native local bindings
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/atto-java-release-cranelift-const-v1.yml']
+permissions:
+  contents: read
+jobs:
+  java:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Exact public checkout
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.java.git 3c78809375e6e37697f5156010a7c2aa5ea21ecf
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = 3c78809375e6e37697f5156010a7c2aa5ea21ecf
+          git -C source rev-parse HEAD^{tree}
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - run: |
+          set -euo pipefail
+          cd source/verification/control-plane-arena-v1
+          javac ControlPlaneArena32.java ControlPlaneArenaProbe.java
+          java ControlPlaneArenaProbe
+  cranelift:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Exact public checkout
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git init source
+          git -C source -c credential.helper= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.cranelift.git 5344dd5e720c0bfb8d40ec8a7c4acb37b6e69998
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = 5344dd5e720c0bfb8d40ec8a7c4acb37b6e69998
+          git -C source rev-parse HEAD^{tree}
+      - run: cd source && cargo test --locked --test local_const_semantics -- --nocapture
