@@ -9,8 +9,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     env:
-      SOURCE_HEAD: 72997f617372c26b003ce2df351b93414023c145
-      SOURCE_TREE: 22e885ec9a982d971f41b0eb19614f0ed56b3e34
+      SOURCE_HEAD: c9e4529f25f90d53eb186797b7492116dde3c26d
+      SOURCE_TREE: 03b64358ae332b747726b47ac4790bd41d6760d1
       GIT_TERMINAL_PROMPT: '0'
     steps:
       - name: Fetch exact public source
@@ -31,7 +31,7 @@ jobs:
         run: |
           set -euo pipefail
           java -version
-          mvn -B -ntp -Dtest=ActorContinuationLedgerTest,ActorRuntimeTest test
+          mvn -B -ntp -Dtest=ActorContinuationLedgerTest,ActorRuntimeTest,ActorContinuationTerminalResourceFailureTest test
       - name: Verify source unchanged
         run: |
           set -euo pipefail
