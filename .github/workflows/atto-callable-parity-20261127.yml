@@ -12,10 +12,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - repo: atto-source.java
-            head: 013d1dfe6990b9ccfd0c7f7d7ff61aae59277525
-            lane: java
-            tree: 7e4b7d675375ee1154aa372ec578bbf72b915541
+          - repo: atto-source.rs
+            head: 77187515cbb68fbfc6973797bb189dded4d57774
+            lane: rust
+            tree: db09a4967252528c17f8d9f54f7314bc861a763b
     env:
       SOURCE_REPO: ${{ matrix.repo }}
       SOURCE_HEAD: ${{ matrix.head }}
@@ -27,7 +27,7 @@ jobs:
         run: |
           set -euo pipefail
           case "$SOURCE_REPO:$SOURCE_HEAD:$SOURCE_TREE" in
-            atto-source.java:013d1dfe6990b9ccfd0c7f7d7ff61aae59277525:7e4b7d675375ee1154aa372ec578bbf72b915541) ;;
+            atto-source.rs:77187515cbb68fbfc6973797bb189dded4d57774:db09a4967252528c17f8d9f54f7314bc861a763b) ;;
             *) exit 1 ;;
           esac
           mkdir source
