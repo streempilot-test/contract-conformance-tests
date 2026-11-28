@@ -10,8 +10,8 @@ jobs:
     timeout-minutes: 25
     env:
       GIT_TERMINAL_PROMPT: '0'
-      SOURCE_SHA: 9d5b5d88212ebb151a072cd735019c2d45024fe8
-      SOURCE_TREE: ac4efe8ae272663b21dcd53e5e3b95ae2a2dd3f7
+      SOURCE_SHA: 4517bc3f9bd3b86d02fa0e0055410de68c86113c
+      SOURCE_TREE: 269191df3d4eb97c58e35af4c2019cc51bd85360
     steps:
       - name: Fetch public Rust source and verify exact commit and tree
         shell: bash
@@ -37,7 +37,7 @@ jobs:
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/atto-rust"
-          cargo test --locked --all-targets
+          cargo test --locked --all-targets --no-fail-fast
       - name: Inspect guest test harness prerequisites
         shell: bash
         run: |
