@@ -1,0 +1,42 @@
+name: Exact LLVM checked array constructor
+on:
+  push:
+    branches: ['verify/atto-llvm-array-ctor-20261128']
+permissions: {}
+jobs:
+  native:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      SOURCE_HEAD: 67cc8067109bbd19f46f33b3d777c2e677554aea
+      SOURCE_TREE: b75171a94e318cf9f3925ae85faebc8b31304a1b
+      GIT_TERMINAL_PROMPT: '0'
+    steps:
+      - name: Anonymous exact public source checkout
+        run: |
+          set -euo pipefail
+          git init source
+          git -C source -c credential.helper= -c http.extraHeader= fetch --no-tags --depth=1 https://github.com/atto-lang/atto-source.llvm.git "$SOURCE_HEAD"
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = "$SOURCE_HEAD"
+          test "$(git -C source rev-parse HEAD^{tree})" = "$SOURCE_TREE"
+          git -C source diff --exit-code HEAD --
+      - name: Build actual LLVM compiler
+        working-directory: source
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends clang llvm-dev cmake ninja-build
+          cmake -G Ninja -S . -B "$RUNNER_TEMP/llvm" -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DLLVM_DIR="$(llvm-config --cmakedir)"
+          cmake --build "$RUNNER_TEMP/llvm" --target oreslang-llvmc --parallel 2
+      - name: Native constructor and ownership fault regressions
+        working-directory: source
+        run: |
+          set -euo pipefail
+          ctest --test-dir "$RUNNER_TEMP/llvm" --output-on-failure --no-tests=error -R '(constructor|native_checked_array_source_failure)'
+      - name: Verify source unchanged
+        run: |
+          set -euo pipefail
+          test "$(git -C source rev-parse HEAD^{tree})" = "$SOURCE_TREE"
+          git -C source diff --exit-code HEAD --
+          echo "VERIFIED_AFTER_TEST=$SOURCE_HEAD"
