@@ -13,17 +13,13 @@ jobs:
       matrix:
         include:
           - repo: atto-source.java
-            head: d37abff00f3206ad4b0a7b7a7574c1ace505df76
+            head: 677ac2d2e21a5c1def2593565d47be7778ef2e55
             lane: java
-            tree: ecdd61a764f3e3d8078a5f66765898a099b8c222
-          - repo: atto-source.rs
-            head: c8b2b4a34907c1dcc886ec329cfc9616aafe7f0e
-            lane: rust-baseline
-            tree: 18c9c7ee0d0ad44ac6b6ba35d497461a484756ed
-          - repo: atto-source.rs
-            head: 39cb7ddf378070d86e614a705fb6ab1ef2d10685
-            lane: rust-compare
-            tree: b0f915c2f7b2a13bf8a93b0661cd06f05d67225c
+            tree: 0ab080ff4e3cb45763a61df19ada91335a34a0eb
+          - repo: atto-source.js
+            head: a58ca22d64dd3b39c1f9156c033ffaeb4dd7c6b5
+            lane: js
+            tree: 7e94d9bab3e1070dd0a19b59fae8b31b101e84b9
     env:
       SOURCE_REPO: ${{ matrix.repo }}
       SOURCE_HEAD: ${{ matrix.head }}
@@ -35,7 +31,7 @@ jobs:
         run: |
           set -euo pipefail
           case "$SOURCE_REPO:$SOURCE_HEAD:$SOURCE_TREE" in
-            atto-source.java:d37abff00f3206ad4b0a7b7a7574c1ace505df76:ecdd61a764f3e3d8078a5f66765898a099b8c222|atto-source.rs:c8b2b4a34907c1dcc886ec329cfc9616aafe7f0e:18c9c7ee0d0ad44ac6b6ba35d497461a484756ed|atto-source.rs:39cb7ddf378070d86e614a705fb6ab1ef2d10685:b0f915c2f7b2a13bf8a93b0661cd06f05d67225c) ;;
+            atto-source.java:677ac2d2e21a5c1def2593565d47be7778ef2e55:0ab080ff4e3cb45763a61df19ada91335a34a0eb|atto-source.js:a58ca22d64dd3b39c1f9156c033ffaeb4dd7c6b5:7e94d9bab3e1070dd0a19b59fae8b31b101e84b9) ;;
             *) exit 1 ;;
           esac
           mkdir source
@@ -77,7 +73,7 @@ jobs:
               ;;
             js)
               node --version
-              node --test tests/static-fnc-call-apply.test.mjs tests/named-argument-separators-v1.test.mjs tests/named-aggregate-type-inference.test.mjs
+              node --test tests/stored-static-product-apply.test.mjs tests/static-fnc-call-apply.test.mjs tests/named-argument-separators-v1.test.mjs tests/named-aggregate-type-inference.test.mjs
               ;;
             java)
               export JAVA_HOME="$JAVA_HOME_21_X64"
